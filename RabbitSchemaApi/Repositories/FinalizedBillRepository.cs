@@ -37,6 +37,7 @@ public class FinalizedBillRepository : IFinalizedBillRepository
                 await connection.OpenAsync();
 
                 using var command = connection.CreateCommand();
+                command.BindByName = true;
                 command.CommandText = "INSERT INTO finalizedbill_logs (message_id, payload, queue_name, created_at) VALUES (:messageId, :payload, :queueName, :createdAt)";
 
                 command.Parameters.Add("messageId", OracleDbType.Varchar2).Value = messageId;
@@ -69,6 +70,7 @@ public class FinalizedBillRepository : IFinalizedBillRepository
                 await connection.OpenAsync();
 
                 using var command = connection.CreateCommand();
+                command.BindByName = true;
                 command.CommandText = "INSERT INTO finalizedbill_exceptions (message_id, exception_message, stack_trace, context, created_at) VALUES (:messageId, :exceptionMessage, :stackTrace, :context, :createdAt)";
 
                 command.Parameters.Add("messageId", OracleDbType.Varchar2).Value = (object?)messageId ?? DBNull.Value;

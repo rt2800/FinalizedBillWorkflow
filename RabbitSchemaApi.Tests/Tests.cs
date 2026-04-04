@@ -1,5 +1,4 @@
 using System.Text.Json.Nodes;
-using Xunit;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -10,6 +9,7 @@ using RabbitSchemaApi.Controllers;
 using RabbitSchemaApi.Models;
 using RabbitSchemaApi.Services;
 using RabbitSchemaApi.Repositories;
+using Xunit;
 
 namespace RabbitSchemaApi.Tests;
 
@@ -33,7 +33,9 @@ public class SchemaValidationServiceTests
         var env = Substitute.For<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>();
         env.ContentRootPath.Returns(AppContext.BaseDirectory);
 
-        return new SchemaValidationService(config, env, NullLogger<SchemaValidationService>.Instance);
+        var repo = new SchemaRepository(config, env, NullLogger<SchemaRepository>.Instance);
+
+        return new SchemaValidationService(repo, NullLogger<SchemaValidationService>.Instance);
     }
 
     [Fact]
