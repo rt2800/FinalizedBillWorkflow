@@ -154,12 +154,13 @@ public class MessagesControllerTests
 {
     private readonly ISchemaValidationService _validator = Substitute.For<ISchemaValidationService>();
     private readonly IRabbitMqPublisher _publisher       = Substitute.For<IRabbitMqPublisher>();
+    private readonly ISftpService _sftpService           = Substitute.For<ISftpService>();
     private readonly IFinalizedBillRepository _repository = Substitute.For<IFinalizedBillRepository>();
 
     private MessagesController CreateController(string bodyJson)
     {
         var logger = NullLogger<MessagesController>.Instance;
-        var controller = new MessagesController(_validator, _publisher, _repository, logger);
+        var controller = new MessagesController(_validator, _publisher, _sftpService, _repository, logger);
 
         // Set up a fake HttpContext with the provided JSON body
         var httpContext = new DefaultHttpContext();

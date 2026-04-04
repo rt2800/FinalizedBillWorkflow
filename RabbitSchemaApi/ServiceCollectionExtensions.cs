@@ -10,6 +10,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<RabbitMqSettings>(configuration.GetSection("RabbitMQ"));
+        services.Configure<SftpSettings>(configuration.GetSection("Sftp"));
 
         services.AddSingleton<ISchemaRepository, SchemaRepository>();
         services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
@@ -22,6 +23,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddDomainServices(this IServiceCollection services)
     {
         services.AddSingleton<ISchemaValidationService, SchemaValidationService>();
+        services.AddSingleton<ISftpService, SftpService>();
 
         return services;
     }
