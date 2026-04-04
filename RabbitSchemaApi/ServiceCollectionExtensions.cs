@@ -14,6 +14,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISchemaRepository, SchemaRepository>();
         services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
 
+        services.AddScoped<IFinalizedBillRepository, FinalizedBillRepository>();
+
         return services;
     }
 

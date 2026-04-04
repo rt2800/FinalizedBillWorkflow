@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <!-- RabbitMQ client v7+ with async-first API -->
+    <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.100" />
     <PackageReference Include="RabbitMQ.Client" Version="7.*" />
 
     <!-- JSON Schema validation — supports Draft 7 / 2019-09 / 2020-12 -->
@@ -21,6 +22,8 @@
 
     <!-- Scalar — modern OpenAPI UI (replaces Swagger UI) -->
     <PackageReference Include="Scalar.AspNetCore" Version="2.*" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
 
     <!-- Swashbuckle for Swagger UI support -->
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />

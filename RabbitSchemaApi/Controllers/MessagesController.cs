@@ -3,6 +3,8 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Mvc;
 using RabbitSchemaApi.Models;
 using RabbitSchemaApi.Services;
+using RabbitSchemaApi.Repositories;
+using Serilog.Context;
 
 namespace RabbitSchemaApi.Controllers;
 
@@ -13,15 +15,18 @@ public sealed class MessagesController : ControllerBase
 {
     private readonly ISchemaValidationService _validator;
     private readonly IRabbitMqPublisher _publisher;
+    private readonly IFinalizedBillRepository _repository;
     private readonly ILogger<MessagesController> _logger;
 
     public MessagesController(
         ISchemaValidationService validator,
         IRabbitMqPublisher publisher,
+        IFinalizedBillRepository repository,
         ILogger<MessagesController> logger)
     {
         _validator = validator;
         _publisher = publisher;
+        _repository = repository;
         _logger    = logger;
     }
 
@@ -102,30 +107,41 @@ public sealed class MessagesController : ControllerBase
         // ── 4. Publish to RabbitMQ ─────────────────────────────────────────────
         var targetQueue = queueName ?? schemaName;
 
-        try
+        using (LogContext.PushProperty("SchemaName", schemaName))
+        using (LogContext.PushProperty("TargetQueue", targetQueue))
         {
-            var receipt = await _publisher.PublishAsync(
-                queueName: targetQueue,
-                payload: payloadNode,
-                headers: new Dictionary<string, object?>
-                {
-                    ["x-schema-name"]    = schemaName,
-                    ["x-client-ip"]      = HttpContext.Connection.RemoteIpAddress?.ToString(),
-                    ["x-correlation-id"] = HttpContext.TraceIdentifier
-                },
-                ct: ct);
+            try
+            {
+                var receipt = await _publisher.PublishAsync(
+                    queueName: targetQueue,
+                    payload: payloadNode,
+                    headers: new Dictionary<string, object?>
+                    {
+                        ["x-schema-name"] = schemaName,
+                        ["x-client-ip"] = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                        ["x-correlation-id"] = HttpContext.TraceIdentifier
+                    },
+                    ct: ct);
 
-            _logger.LogInformation(
-                "Message {MessageId} accepted for schema '{Schema}' → queue '{Queue}'",
-                receipt.MessageId, schemaName, targetQueue);
+                _logger.LogInformation(
+                    "Message {MessageId} accepted for schema '{Schema}' → queue '{Queue}'",
+                    receipt.MessageId, schemaName, targetQueue);
 
-            return Accepted(ApiResponse<PublishReceipt>.Ok(receipt, "Payload validated and published successfully."));
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogError(ex, "Failed to publish to RabbitMQ queue '{Queue}'", targetQueue);
-            return StatusCode(StatusCodes.Status503ServiceUnavailable,
-                ApiResponse<object>.Error("Message broker is unavailable. Please retry shortly."));
+                // Audit log successful publication
+                await _repository.AddAuditLogAsync(receipt.MessageId, payloadNode.ToJsonString(), targetQueue);
+
+                return Accepted(ApiResponse<PublishReceipt>.Ok(receipt, "Payload validated and published successfully."));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Failed to publish to RabbitMQ queue '{Queue}'", targetQueue);
+
+                // Log exception to DB
+                await _repository.AddExceptionLogAsync(ex, context: $"PublishMessage to {targetQueue}");
+
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    ApiResponse<object>.Error("Message broker is unavailable. Please retry shortly."));
+            }
         }
     }
 

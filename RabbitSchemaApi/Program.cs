@@ -3,6 +3,7 @@ using NLog.Web;
 using RabbitSchemaApi;
 using RabbitSchemaApi.Middleware;
 using Scalar.AspNetCore;
+using Serilog;
 
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
 logger.Debug("init main");
@@ -10,6 +11,15 @@ logger.Debug("init main");
 try
 {
     var builder = WebApplication.CreateBuilder(args);
+
+    // ── Serilog for Audit/Exception Repository Context ──────────────────────
+    Log.Logger = new LoggerConfiguration()
+        .ReadFrom.Configuration(builder.Configuration)
+        .Enrich.FromLogContext()
+        .WriteTo.Console()
+        .CreateLogger();
+
+    builder.Host.UseSerilog();
 
     // ── NLog ────────────────────────────────────────────────────────────────
     builder.Logging.ClearProviders();
