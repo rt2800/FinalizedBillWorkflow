@@ -1,7 +1,7 @@
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using Json.Schema;
 using RabbitSchemaApi.Models;
+using RabbitSchemaApi.Repositories;
 
 namespace RabbitSchemaApi.Services;
 
@@ -22,54 +22,17 @@ public interface ISchemaValidationService
 /// </summary>
 public sealed class SchemaValidationService : ISchemaValidationService
 {
-    // Compiled schemas keyed by their registered name (e.g. "order")
-    private readonly Dictionary<string, JsonSchema> _schemas = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ISchemaRepository _repository;
     private readonly ILogger<SchemaValidationService> _logger;
 
-    public IReadOnlyList<string> RegisteredSchemas => _schemas.Keys.ToList().AsReadOnly();
+    public IReadOnlyList<string> RegisteredSchemas => _repository.RegisteredSchemas;
 
     public SchemaValidationService(
-        IConfiguration configuration,
-        IWebHostEnvironment env,
+        ISchemaRepository repository,
         ILogger<SchemaValidationService> logger)
     {
+        _repository = repository;
         _logger = logger;
-
-        var entries = configuration
-            .GetSection("SchemaRegistry")
-            .Get<List<SchemaRegistryEntry>>() ?? [];
-
-        if (entries.Count == 0)
-            _logger.LogWarning("No schemas found in SchemaRegistry configuration section.");
-
-        foreach (var entry in entries)
-        {
-            // Resolve relative paths against the content root (project root in dev, publish dir in prod)
-            var fullPath = Path.IsPathRooted(entry.FilePath)
-                ? entry.FilePath
-                : Path.Combine(env.ContentRootPath, entry.FilePath);
-
-            if (!File.Exists(fullPath))
-            {
-                _logger.LogError("Schema file not found for '{Name}': {Path}", entry.Name, fullPath);
-                continue;
-            }
-
-            try
-            {
-                var json = File.ReadAllText(fullPath);
-                var schema = JsonSchema.FromText(json);
-                _schemas[entry.Name] = schema;
-                _logger.LogInformation("Loaded schema '{Name}' v{Version} from {Path}",
-                    entry.Name, entry.Version, fullPath);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to parse schema '{Name}' at {Path}", entry.Name, fullPath);
-                throw new InvalidOperationException(
-                    $"Cannot start: schema '{entry.Name}' at '{fullPath}' is not valid JSON Schema.", ex);
-            }
-        }
     }
 
     public Task<SchemaValidationResult> ValidateAsync(
@@ -77,7 +40,8 @@ public sealed class SchemaValidationService : ISchemaValidationService
         JsonNode payload,
         CancellationToken ct = default)
     {
-        if (!_schemas.TryGetValue(schemaName, out var schema))
+        var schema = _repository.GetSchema(schemaName);
+        if (schema == null)
         {
             // Unknown schema — return a clear error rather than silently failing
             return Task.FromResult(SchemaValidationResult.Invalid(

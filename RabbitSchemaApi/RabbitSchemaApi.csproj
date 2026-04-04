@@ -22,14 +22,16 @@
     <!-- Scalar — modern OpenAPI UI (replaces Swagger UI) -->
     <PackageReference Include="Scalar.AspNetCore" Version="2.*" />
 
-    <!-- For structured logging -->
-    <PackageReference Include="Serilog.AspNetCore" Version="9.*" />
-    <PackageReference Include="Serilog.Sinks.Console" Version="6.*" />
+    <!-- Swashbuckle for Swagger UI support -->
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
+
+    <!-- NLog for logging -->
+    <PackageReference Include="NLog.Web.AspNetCore" Version="5.*" />
   </ItemGroup>
 
-  <!-- Embed all .json schema files in the Schemas/ folder as content -->
+  <!-- Update existing .json schema files in the Schemas/ folder to CopyToOutputDirectory -->
   <ItemGroup>
-    <Content Include="Schemas\**\*.json">
+    <Content Update="Schemas\**\*.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

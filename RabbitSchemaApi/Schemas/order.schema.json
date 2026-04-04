@@ -50,8 +50,7 @@
           },
           "unitPrice": {
             "type": "number",
-            "minimum": 0,
-            "exclusiveMinimum": true,
+            "exclusiveMinimum": 0,
             "multipleOf": 0.01
           },
           "discount": {
