@@ -32,7 +32,7 @@ HTTP POST /api/messages/{schemaName}
 | OpenAPI UI | `Scalar.AspNetCore` |
 | Message broker client | `RabbitMQ.Client` v7 (async-first) |
 | Logging | `Serilog.AspNetCore` |
-| Tests | xUnit + NSubstitute + FluentAssertions |
+| Tests | xUnit + NSubstitute |
 
 ---
 

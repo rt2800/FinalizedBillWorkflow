@@ -1,5 +1,4 @@
 using System.Text.Json.Nodes;
-using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -46,8 +45,8 @@ public class SchemaValidationServiceTests
 
         var result = await sut.ValidateAsync("order", payload);
 
-        result.IsValid.Should().BeTrue();
-        result.Errors.Should().BeEmpty();
+        Assert.True(result.IsValid);
+        Assert.Empty(result.Errors);
     }
 
     [Fact]
@@ -66,8 +65,8 @@ public class SchemaValidationServiceTests
 
         var result = await sut.ValidateAsync("order", payload);
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Message.Contains("currency", StringComparison.OrdinalIgnoreCase)
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Message.Contains("currency", StringComparison.OrdinalIgnoreCase)
                                          || e.SchemaKeyword == "required");
     }
 
@@ -87,7 +86,7 @@ public class SchemaValidationServiceTests
 
         var result = await sut.ValidateAsync("order", payload);
 
-        result.IsValid.Should().BeFalse();
+        Assert.False(result.IsValid);
     }
 
     [Fact]
@@ -96,8 +95,9 @@ public class SchemaValidationServiceTests
         var sut = BuildSut();
         var result = await sut.ValidateAsync("does-not-exist", JsonNode.Parse("{}")!);
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().ContainSingle(e => e.Message.Contains("does-not-exist"));
+        Assert.False(result.IsValid);
+        var singleError = Assert.Single(result.Errors);
+        Assert.Contains("does-not-exist", singleError.Message);
     }
 
     [Fact]
@@ -109,14 +109,14 @@ public class SchemaValidationServiceTests
 
         var result = await sut.ValidateAsync("order", payload);
 
-        result.IsValid.Should().BeFalse();
+        Assert.False(result.IsValid);
     }
 
     [Fact]
     public void RegisteredSchemas_ContainsOrder()
     {
         var sut = BuildSut();
-        sut.RegisteredSchemas.Should().Contain("order", because: "it is defined in SchemaRegistry config");
+        Assert.Contains("order", sut.RegisteredSchemas);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -178,7 +178,7 @@ public class MessagesControllerTests
         var controller = CreateController("{}");
         var result = await controller.PublishMessage("invoice", null, CancellationToken.None);
 
-        result.Should().BeOfType<NotFoundObjectResult>();
+        Assert.IsType<NotFoundObjectResult>(result);
     }
 
     [Fact]
@@ -193,7 +193,7 @@ public class MessagesControllerTests
         var controller = CreateController("""{"orderId":"abc"}""");
         var result = await controller.PublishMessage("order", null, CancellationToken.None);
 
-        result.Should().BeOfType<UnprocessableEntityObjectResult>();
+        Assert.IsType<UnprocessableEntityObjectResult>(result);
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public class MessagesControllerTests
         var controller = CreateController("""{"orderId":"3fa85f64-5717-4562-b3fc-2c963f66afa6"}""");
         var result = await controller.PublishMessage("order", null, CancellationToken.None);
 
-        result.Should().BeOfType<AcceptedResult>();
+        Assert.IsType<AcceptedResult>(result);
         await _publisher.Received(1).PublishAsync(
             "order",
             Arg.Any<object>(),
@@ -235,7 +235,7 @@ public class MessagesControllerTests
         var controller = CreateController("{}");
         var result = controller.GetSchemas();
 
-        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
-        ok.Should().NotBeNull();
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.NotNull(ok.Value);
     }
 }
