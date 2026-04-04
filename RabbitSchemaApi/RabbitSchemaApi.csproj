@@ -11,6 +11,8 @@
 
   <ItemGroup>
     <!-- RabbitMQ client v7+ with async-first API -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0-preview.1.25080.5" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.0.0-preview5" />
     <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.100" />
     <PackageReference Include="RabbitMQ.Client" Version="7.*" />
 
@@ -18,7 +20,7 @@
     <PackageReference Include="JsonSchema.Net" Version="7.*" />
 
     <!-- Built-in .NET 10 OpenAPI document generation -->
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0-preview.1.25120.3" />
 
     <!-- Scalar — modern OpenAPI UI (replaces Swagger UI) -->
     <PackageReference Include="Scalar.AspNetCore" Version="2.*" />
