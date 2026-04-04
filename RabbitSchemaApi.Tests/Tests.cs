@@ -8,6 +8,7 @@ using RabbitSchemaApi.Controllers;
 using RabbitSchemaApi.Models;
 using RabbitSchemaApi.Services;
 using RabbitSchemaApi.Repositories;
+using RabbitSchemaApi.BackgroundServices;
 using Xunit;
 
 namespace RabbitSchemaApi.Tests;
@@ -154,13 +155,12 @@ public class MessagesControllerTests
 {
     private readonly ISchemaValidationService _validator = Substitute.For<ISchemaValidationService>();
     private readonly IRabbitMqPublisher _publisher       = Substitute.For<IRabbitMqPublisher>();
-    private readonly ISftpService _sftpService           = Substitute.For<ISftpService>();
-    private readonly IFinalizedBillRepository _repository = Substitute.For<IFinalizedBillRepository>();
+    private readonly IBackgroundTaskQueue _taskQueue     = Substitute.For<IBackgroundTaskQueue>();
 
     private MessagesController CreateController(string bodyJson)
     {
         var logger = NullLogger<MessagesController>.Instance;
-        var controller = new MessagesController(_validator, _publisher, _sftpService, _repository, logger);
+        var controller = new MessagesController(_validator, _publisher, _taskQueue, logger);
 
         // Set up a fake HttpContext with the provided JSON body
         var httpContext = new DefaultHttpContext();
@@ -213,7 +213,7 @@ public class MessagesControllerTests
             PublishedAt = DateTimeOffset.UtcNow
         };
         _publisher
-            .PublishAsync("order", Arg.Any<object>(), Arg.Any<IDictionary<string, object?>>(), Arg.Any<CancellationToken>())
+            .PublishAsync("order", Arg.Any<JsonNode>(), Arg.Any<IDictionary<string, object?>>(), Arg.Any<CancellationToken>())
             .Returns(receipt);
 
         var controller = CreateController("""{"orderId":"3fa85f64-5717-4562-b3fc-2c963f66afa6"}""");
@@ -222,9 +222,11 @@ public class MessagesControllerTests
         Assert.IsType<AcceptedResult>(result);
         await _publisher.Received(1).PublishAsync(
             "order",
-            Arg.Any<object>(),
+            Arg.Any<JsonNode>(),
             Arg.Any<IDictionary<string, object?>>(),
             Arg.Any<CancellationToken>());
+
+        await _taskQueue.Received(2).EnqueueAsync(Arg.Any<BackgroundTask>());
     }
 
     [Fact]

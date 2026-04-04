@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using RabbitSchemaApi.Models;
 using RabbitSchemaApi.Services;
 using RabbitSchemaApi.Repositories;
+using RabbitSchemaApi.BackgroundServices;
 using Serilog.Context;
 
 namespace RabbitSchemaApi.Controllers;
@@ -16,21 +17,18 @@ public sealed class MessagesController : ControllerBase
 {
     private readonly ISchemaValidationService _validator;
     private readonly IRabbitMqPublisher _publisher;
-    private readonly ISftpService _sftpService;
-    private readonly IFinalizedBillRepository _repository;
+    private readonly IBackgroundTaskQueue _taskQueue;
     private readonly ILogger<MessagesController> _logger;
 
     public MessagesController(
         ISchemaValidationService validator,
         IRabbitMqPublisher publisher,
-        ISftpService sftpService,
-        IFinalizedBillRepository repository,
+        IBackgroundTaskQueue taskQueue,
         ILogger<MessagesController> logger)
     {
         _validator = validator;
         _publisher = publisher;
-        _sftpService = sftpService;
-        _repository = repository;
+        _taskQueue = taskQueue;
         _logger    = logger;
     }
 
@@ -41,15 +39,8 @@ public sealed class MessagesController : ControllerBase
     /// <summary>
     /// Validates the request body against the named JSON Schema and, if valid,
     /// publishes the payload to the RabbitMQ queue that matches the schema name.
+    /// SFTP upload and Audit logging are handled in background tasks for performance.
     /// </summary>
-    /// <param name="schemaName">
-    /// Name of a registered schema (e.g. <c>order</c>). 
-    /// Must match a key in the <c>SchemaRegistry</c> config section.
-    /// </param>
-    /// <param name="queueName">
-    /// Optional override for the target RabbitMQ queue name.
-    /// Defaults to <paramref name="schemaName"/> when omitted.
-    /// </param>
     [Authorize]
     [HttpPost("{schemaName}")]
     [ProducesResponseType(typeof(ApiResponse<PublishReceipt>), StatusCodes.Status202Accepted)]
@@ -75,7 +66,6 @@ public sealed class MessagesController : ControllerBase
         JsonNode? payloadNode;
         try
         {
-            // Read raw bytes so we can pass the JsonNode to the validator
             using var reader = new StreamReader(Request.Body);
             var rawJson = await reader.ReadToEndAsync(ct);
 
@@ -102,66 +92,60 @@ public sealed class MessagesController : ControllerBase
                 "Payload rejected by schema '{Schema}' — {Count} violation(s)",
                 schemaName, validationResult.Errors.Count);
 
-            // 422 Unprocessable Entity: the JSON was syntactically valid but
-            // semantically wrong (schema violations).
             return UnprocessableEntity(ApiResponse<ValidationSummary>.Fail(
                 validationResult.Errors.Select(e => $"[{e.Path}] {e.Message}"),
                 $"Payload does not conform to schema '{schemaName}'."));
         }
 
-        // ── 4. Upload to SFTP ─────────────────────────────────────────────────
-        // We await the upload to ensure it completes before the request finishes,
-        // which prevents early cancellation of the request token.
-        // SftpService.UploadAsync handles its own exceptions internally,
-        // ensuring the RabbitMQ step below still runs even if SFTP fails.
-        await _sftpService.UploadAsync(payloadNode, CancellationToken.None);
-
-        // ── 5. Publish to RabbitMQ ─────────────────────────────────────────────
         var targetQueue = queueName ?? schemaName;
+        var payloadString = payloadNode.ToJsonString();
 
+        // ── 4. Publish to RabbitMQ (Immediate with fallback) ─────────────────
+        PublishReceipt receipt;
         using (LogContext.PushProperty("SchemaName", schemaName))
         using (LogContext.PushProperty("TargetQueue", targetQueue))
         {
-            try
-            {
-                var receipt = await _publisher.PublishAsync(
-                    queueName: targetQueue,
-                    payload: payloadNode,
-                    headers: new Dictionary<string, object?>
-                    {
-                        ["x-schema-name"] = schemaName,
-                        ["x-client-ip"] = HttpContext.Connection.RemoteIpAddress?.ToString(),
-                        ["x-correlation-id"] = HttpContext.TraceIdentifier
-                    },
-                    ct: ct);
+            receipt = await _publisher.PublishAsync(
+                queueName: targetQueue,
+                payload: payloadNode,
+                headers: new Dictionary<string, object?>
+                {
+                    ["x-schema-name"] = schemaName,
+                    ["x-client-ip"] = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                    ["x-correlation-id"] = HttpContext.TraceIdentifier
+                },
+                ct: ct);
 
-                _logger.LogInformation(
-                    "Message {MessageId} accepted for schema '{Schema}' → queue '{Queue}'",
-                    receipt.MessageId, schemaName, targetQueue);
-
-                // Audit log successful publication
-                await _repository.AddAuditLogAsync(receipt.MessageId, payloadNode.ToJsonString(), targetQueue);
-
-                return Accepted(ApiResponse<PublishReceipt>.Ok(receipt, "Payload validated and published successfully."));
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogError(ex, "Failed to publish to RabbitMQ queue '{Queue}'", targetQueue);
-
-                // Log exception to DB
-                await _repository.AddExceptionLogAsync(ex, context: $"PublishMessage to {targetQueue}");
-
-                return StatusCode(StatusCodes.Status503ServiceUnavailable,
-                    ApiResponse<object>.Error("Message broker is unavailable. Please retry shortly."));
-            }
+            _logger.LogInformation(
+                "Message {MessageId} processed for schema '{Schema}' → queue '{Queue}' (Exchange: {Exchange})",
+                receipt.MessageId, schemaName, targetQueue, receipt.Exchange);
         }
+
+        // ── 5. Enqueue Background Tasks (SFTP and Audit Logging) ──────────────
+        // These are non-blocking for high performance.
+        await _taskQueue.EnqueueAsync(new BackgroundTask
+        {
+            Id = receipt.MessageId,
+            Type = BackgroundTaskType.SftpUpload,
+            Payload = payloadString,
+            Target = targetQueue
+        });
+
+        await _taskQueue.EnqueueAsync(new BackgroundTask
+        {
+            Id = receipt.MessageId,
+            Type = BackgroundTaskType.AuditLog,
+            Payload = payloadString,
+            Target = targetQueue
+        });
+
+        return Accepted(ApiResponse<PublishReceipt>.Ok(receipt, "Payload validated and publication initiated."));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
     // GET /api/messages/schemas
     // ──────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Returns a list of all schema names that this API will accept.</summary>
     [HttpGet("schemas")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<string>>), StatusCodes.Status200OK)]
     public IActionResult GetSchemas()
@@ -175,10 +159,6 @@ public sealed class MessagesController : ControllerBase
     // POST /api/messages/{schemaName}/validate  (dry-run — no publish)
     // ──────────────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Validates the payload against the named schema WITHOUT publishing to RabbitMQ.
-    /// Useful for client-side pre-validation and debugging.
-    /// </summary>
     [Authorize]
     [HttpPost("{schemaName}/validate")]
     [ProducesResponseType(typeof(ApiResponse<ValidationSummary>), StatusCodes.Status200OK)]
@@ -222,10 +202,3 @@ public sealed class MessagesController : ControllerBase
                 "Payload has schema violations."));
     }
 }
-
-/// <summary>Returned by the dry-run validate endpoint.</summary>
-public sealed record ValidationSummary(
-    string SchemaName,
-    bool IsValid,
-    int ErrorCount,
-    IReadOnlyList<ValidationError> Errors);
