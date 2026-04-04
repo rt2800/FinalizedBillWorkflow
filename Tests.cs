@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Xunit;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -8,6 +9,7 @@ using NSubstitute;
 using RabbitSchemaApi.Controllers;
 using RabbitSchemaApi.Models;
 using RabbitSchemaApi.Services;
+using RabbitSchemaApi.Repositories;
 
 namespace RabbitSchemaApi.Tests;
 
@@ -150,11 +152,12 @@ public class MessagesControllerTests
 {
     private readonly ISchemaValidationService _validator = Substitute.For<ISchemaValidationService>();
     private readonly IRabbitMqPublisher _publisher       = Substitute.For<IRabbitMqPublisher>();
+    private readonly IFinalizedBillRepository _repository = Substitute.For<IFinalizedBillRepository>();
 
     private MessagesController CreateController(string bodyJson)
     {
         var logger = NullLogger<MessagesController>.Instance;
-        var controller = new MessagesController(_validator, _publisher, logger);
+        var controller = new MessagesController(_validator, _publisher, _repository, logger);
 
         // Set up a fake HttpContext with the provided JSON body
         var httpContext = new DefaultHttpContext();

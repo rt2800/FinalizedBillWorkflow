@@ -2,6 +2,7 @@ using Scalar.AspNetCore;
 using Serilog;
 using RabbitSchemaApi.Middleware;
 using RabbitSchemaApi.Services;
+using RabbitSchemaApi.Repositories;
 
 // ── Bootstrap Serilog early so startup errors are captured ───────────────────
 Log.Logger = new LoggerConfiguration()
@@ -46,6 +47,8 @@ try
     //   • a single AMQP connection should be shared across all requests
     //   • the client's own auto-recovery handles reconnects transparently
     builder.Services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
+
+    builder.Services.AddScoped<IFinalizedBillRepository, FinalizedBillRepository>();
 
     // ── OpenAPI / Scalar ─────────────────────────────────────────────────────
     //
