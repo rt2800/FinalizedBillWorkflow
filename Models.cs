@@ -1,0 +1,65 @@
+namespace RabbitSchemaApi.Models;
+
+/// <summary>
+/// Unified API response envelope returned on every endpoint.
+/// </summary>
+/// <typeparam name="T">Type of the payload data.</typeparam>
+public sealed record ApiResponse<T>
+{
+    public bool Success { get; init; }
+    public string? Message { get; init; }
+    public T? Data { get; init; }
+    public IReadOnlyList<string>? Errors { get; init; }
+
+    public static ApiResponse<T> Ok(T data, string message = "Request processed successfully") =>
+        new() { Success = true, Message = message, Data = data };
+
+    public static ApiResponse<T> Fail(IEnumerable<string> errors, string message = "Validation failed") =>
+        new() { Success = false, Message = message, Errors = errors.ToList().AsReadOnly() };
+
+    public static ApiResponse<T> Error(string error) =>
+        new() { Success = false, Message = error, Errors = [error] };
+}
+
+/// <summary>
+/// Result of a JSON schema validation attempt.
+/// </summary>
+public sealed record SchemaValidationResult
+{
+    public bool IsValid { get; init; }
+    public IReadOnlyList<ValidationError> Errors { get; init; } = [];
+
+    public static SchemaValidationResult Valid() =>
+        new() { IsValid = true };
+
+    public static SchemaValidationResult Invalid(IEnumerable<ValidationError> errors) =>
+        new() { IsValid = false, Errors = errors.ToList().AsReadOnly() };
+}
+
+/// <summary>
+/// Represents a single schema violation with a JSON pointer path and human-readable message.
+/// </summary>
+public sealed record ValidationError(string Path, string Message, string? SchemaKeyword = null);
+
+/// <summary>
+/// Represents a message successfully published to RabbitMQ.
+/// </summary>
+public sealed record PublishReceipt
+{
+    public required string MessageId { get; init; }
+    public required string Queue { get; init; }
+    public required string Exchange { get; init; }
+    public required DateTimeOffset PublishedAt { get; init; }
+}
+
+/// <summary>
+/// Registration entry mapping a named schema to its JSON file path on disk.
+/// Loaded from appsettings.json under "SchemaRegistry".
+/// </summary>
+public sealed class SchemaRegistryEntry
+{
+    public required string Name { get; set; }
+    public required string FilePath { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string Version { get; set; } = "1.0.0";
+}

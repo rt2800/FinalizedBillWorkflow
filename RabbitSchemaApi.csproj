@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>RabbitSchemaApi</RootNamespace>
+    <AssemblyName>RabbitSchemaApi</AssemblyName>
+    <UserSecretsId>RabbitSchemaApi-secrets</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- RabbitMQ client v7+ with async-first API -->
+    <PackageReference Include="RabbitMQ.Client" Version="7.*" />
+
+    <!-- JSON Schema validation — supports Draft 7 / 2019-09 / 2020-12 -->
+    <PackageReference Include="JsonSchema.Net" Version="7.*" />
+
+    <!-- Built-in .NET 10 OpenAPI document generation -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
+
+    <!-- Scalar — modern OpenAPI UI (replaces Swagger UI) -->
+    <PackageReference Include="Scalar.AspNetCore" Version="2.*" />
+
+    <!-- For structured logging -->
+    <PackageReference Include="Serilog.AspNetCore" Version="9.*" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.*" />
+  </ItemGroup>
+
+  <!-- Embed all .json schema files in the Schemas/ folder as content -->
+  <ItemGroup>
+    <Content Include="Schemas\**\*.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>
