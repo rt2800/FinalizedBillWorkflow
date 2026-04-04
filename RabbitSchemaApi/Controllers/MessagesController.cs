@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RabbitSchemaApi.Models;
 using RabbitSchemaApi.Services;
@@ -49,6 +50,7 @@ public sealed class MessagesController : ControllerBase
     /// Optional override for the target RabbitMQ queue name.
     /// Defaults to <paramref name="schemaName"/> when omitted.
     /// </param>
+    [Authorize]
     [HttpPost("{schemaName}")]
     [ProducesResponseType(typeof(ApiResponse<PublishReceipt>), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ApiResponse<object>),          StatusCodes.Status400BadRequest)]
@@ -177,6 +179,7 @@ public sealed class MessagesController : ControllerBase
     /// Validates the payload against the named schema WITHOUT publishing to RabbitMQ.
     /// Useful for client-side pre-validation and debugging.
     /// </summary>
+    [Authorize]
     [HttpPost("{schemaName}/validate")]
     [ProducesResponseType(typeof(ApiResponse<ValidationSummary>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<ValidationSummary>), StatusCodes.Status400BadRequest)]
