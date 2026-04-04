@@ -15,17 +15,20 @@ public sealed class MessagesController : ControllerBase
 {
     private readonly ISchemaValidationService _validator;
     private readonly IRabbitMqPublisher _publisher;
+    private readonly ISftpService _sftpService;
     private readonly IFinalizedBillRepository _repository;
     private readonly ILogger<MessagesController> _logger;
 
     public MessagesController(
         ISchemaValidationService validator,
         IRabbitMqPublisher publisher,
+        ISftpService sftpService,
         IFinalizedBillRepository repository,
         ILogger<MessagesController> logger)
     {
         _validator = validator;
         _publisher = publisher;
+        _sftpService = sftpService;
         _repository = repository;
         _logger    = logger;
     }
@@ -104,7 +107,14 @@ public sealed class MessagesController : ControllerBase
                 $"Payload does not conform to schema '{schemaName}'."));
         }
 
-        // ── 4. Publish to RabbitMQ ─────────────────────────────────────────────
+        // ── 4. Upload to SFTP ─────────────────────────────────────────────────
+        // We await the upload to ensure it completes before the request finishes,
+        // which prevents early cancellation of the request token.
+        // SftpService.UploadAsync handles its own exceptions internally,
+        // ensuring the RabbitMQ step below still runs even if SFTP fails.
+        await _sftpService.UploadAsync(payloadNode, CancellationToken.None);
+
+        // ── 5. Publish to RabbitMQ ─────────────────────────────────────────────
         var targetQueue = queueName ?? schemaName;
 
         using (LogContext.PushProperty("SchemaName", schemaName))

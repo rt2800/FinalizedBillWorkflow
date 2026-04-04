@@ -63,3 +63,15 @@ public sealed class SchemaRegistryEntry
     public string Description { get; set; } = string.Empty;
     public string Version { get; set; } = "1.0.0";
 }
+
+/// <summary>
+/// Configuration settings for SFTP upload.
+/// </summary>
+public sealed class SftpSettings
+{
+    public string Host { get; set; } = string.Empty;
+    public int Port { get; set; } = 22;
+    public string UserName { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+    public string RemotePath { get; set; } = "/";
+}
