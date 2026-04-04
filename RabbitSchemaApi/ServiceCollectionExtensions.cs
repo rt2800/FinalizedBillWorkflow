@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using RabbitSchemaApi.BackgroundServices;
 using RabbitSchemaApi.Models;
 using RabbitSchemaApi.Repositories;
 using RabbitSchemaApi.Services;
@@ -54,6 +55,10 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<ISchemaValidationService, SchemaValidationService>();
         services.AddSingleton<ISftpService, SftpService>();
+
+        // Background Processing
+        services.AddSingleton<IBackgroundTaskQueue, PersistentBackgroundTaskQueue>();
+        services.AddHostedService<BackgroundTaskProcessor>();
 
         return services;
     }

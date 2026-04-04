@@ -75,3 +75,22 @@ public sealed class SftpSettings
     public string Password { get; set; } = string.Empty;
     public string RemotePath { get; set; } = "/";
 }
+
+/// <summary>Strongly-typed settings bound from appsettings.json "RabbitMQ" section.</summary>
+public sealed class RabbitMqSettings
+{
+    public string HostName { get; set; } = "localhost";
+    public int Port { get; set; } = 5672;
+    public string UserName { get; set; } = "guest";
+    public string Password { get; set; } = "guest";
+    public string VirtualHost { get; set; } = "/";
+    public string ExchangeName { get; set; } = "";    // "" = default AMQP exchange
+    public string DeadLetterExchange { get; set; } = "dlx";
+}
+
+/// <summary>Returned by the dry-run validate endpoint.</summary>
+public sealed record ValidationSummary(
+    string SchemaName,
+    bool IsValid,
+    int ErrorCount,
+    IReadOnlyList<ValidationError> Errors);

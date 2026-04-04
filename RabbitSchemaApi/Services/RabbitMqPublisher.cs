@@ -1,239 +1,119 @@
-using System.Text;
-using System.Text.Json;
+using System.Text.Json.Nodes;
+using EasyNetQ;
 using Microsoft.Extensions.Options;
-using RabbitMQ.Client;
-using RabbitMQ.Client.Exceptions;
 using RabbitSchemaApi.Models;
+using RabbitSchemaApi.Repositories;
+using RabbitSchemaApi.Resilience;
+using Polly;
 
 namespace RabbitSchemaApi.Services;
 
-public interface IRabbitMqPublisher : IAsyncDisposable
+/// <summary>
+/// A wrapper for JSON messages published via EasyNetQ.
+/// Using a named type ensures a consistent topic and serialization.
+/// </summary>
+public record JsonMessage(string Content, string SchemaName);
+
+public interface IRabbitMqPublisher : IDisposable
 {
-    /// <summary>
-    /// Publishes a validated payload to the specified queue.
-    /// Creates the queue if it does not already exist (idempotent declare).
-    /// </summary>
     Task<PublishReceipt> PublishAsync(
         string queueName,
-        object payload,
+        JsonNode payload,
         IDictionary<string, object?>? headers = null,
         CancellationToken ct = default);
 }
 
-/// <summary>
-/// Manages a single long-lived RabbitMQ connection + channel and exposes
-/// a simple publish API. Uses the RabbitMQ.Client v7 async API.
-/// 
-/// The service is registered as a Singleton so the connection is shared
-/// across all requests — exactly how the .NET client is designed to be used.
-/// </summary>
 public sealed class RabbitMqPublisher : IRabbitMqPublisher
 {
     private readonly RabbitMqSettings _settings;
     private readonly ILogger<RabbitMqPublisher> _logger;
+    private readonly IBus _bus;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly string _fallbackDir;
 
-    // Lazily-initialized async connection and channel
-    private IConnection? _connection;
-    private IChannel? _channel;
-    private readonly SemaphoreSlim _initLock = new(1, 1);
-
-    // Tracks which queues we've already declared to avoid redundant declares
-    private readonly HashSet<string> _declaredQueues = new(StringComparer.OrdinalIgnoreCase);
-
-    public RabbitMqPublisher(IOptions<RabbitMqSettings> settings, ILogger<RabbitMqPublisher> logger)
+    public RabbitMqPublisher(
+        IOptions<RabbitMqSettings> settings,
+        ILogger<RabbitMqPublisher> logger,
+        IServiceScopeFactory scopeFactory)
     {
         _settings = settings.Value;
         _logger = logger;
-    }
+        _scopeFactory = scopeFactory;
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Public API
-    // ──────────────────────────────────────────────────────────────────────────
+        var connectionString = $"host={_settings.HostName};port={_settings.Port};username={_settings.UserName};password={_settings.Password};virtualHost={_settings.VirtualHost}";
+        _bus = RabbitHutch.CreateBus(connectionString);
+
+        _fallbackDir = Path.Combine(AppContext.BaseDirectory, "FailedMessages");
+        Directory.CreateDirectory(_fallbackDir);
+    }
 
     public async Task<PublishReceipt> PublishAsync(
         string queueName,
-        object payload,
+        JsonNode payload,
         IDictionary<string, object?>? headers = null,
         CancellationToken ct = default)
     {
-        var channel = await GetChannelAsync(ct);
-
-        // Idempotently ensure the queue exists (safe to call multiple times)
-        await EnsureQueueDeclaredAsync(channel, queueName, ct);
-
         var messageId = Guid.NewGuid().ToString("D");
-        var json = JsonSerializer.Serialize(payload, JsonOptions.Default);
-        var body = Encoding.UTF8.GetBytes(json);
+        var payloadString = payload.ToJsonString();
+        var schemaName = headers?.ContainsKey("x-schema-name") == true ? headers["x-schema-name"]?.ToString() ?? "unknown" : "unknown";
 
-        // Build AMQP basic properties
-        var props = new BasicProperties
-        {
-            MessageId   = messageId,
-            ContentType = "application/json",
-            DeliveryMode = DeliveryModes.Persistent, // survive broker restart
-            Timestamp   = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
-            Headers     = BuildHeaders(headers)
-        };
-
-        // Publish to the default exchange with the queue name as the routing key.
-        // For topic/fanout exchanges, update the exchange name and routing key here.
-        await channel.BasicPublishAsync(
-            exchange: _settings.ExchangeName,
-            routingKey: queueName,
-            mandatory: false,
-            basicProperties: props,
-            body: body,
-            cancellationToken: ct);
-
-        _logger.LogInformation(
-            "Published message {MessageId} to queue '{Queue}' ({Bytes} bytes)",
-            messageId, queueName, body.Length);
-
-        return new PublishReceipt
-        {
-            MessageId   = messageId,
-            Queue       = queueName,
-            Exchange    = _settings.ExchangeName,
-            PublishedAt = DateTimeOffset.UtcNow
-        };
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Connection management — lazy, thread-safe, auto-reconnect capable
-    // ──────────────────────────────────────────────────────────────────────────
-
-    private async Task<IChannel> GetChannelAsync(CancellationToken ct)
-    {
-        // Fast path — already initialised
-        if (_channel is { IsOpen: true })
-            return _channel;
-
-        await _initLock.WaitAsync(ct);
-        try
-        {
-            // Double-check after acquiring the lock
-            if (_channel is { IsOpen: true })
-                return _channel;
-
-            // Rebuild connection/channel (first call or after disconnect)
-            _connection = await CreateConnectionAsync(ct);
-            _channel    = await _connection.CreateChannelAsync(cancellationToken: ct);
-
-            _logger.LogInformation("RabbitMQ connection established to {Host}:{Port}",
-                _settings.HostName, _settings.Port);
-
-            return _channel;
-        }
-        finally
-        {
-            _initLock.Release();
-        }
-    }
-
-    private async Task<IConnection> CreateConnectionAsync(CancellationToken ct)
-    {
-        var factory = new ConnectionFactory
-        {
-            HostName    = _settings.HostName,
-            Port        = _settings.Port,
-            UserName    = _settings.UserName,
-            Password    = _settings.Password,
-            VirtualHost = _settings.VirtualHost,
-            // Automatic recovery reconnects the client after network blips
-            AutomaticRecoveryEnabled = true,
-            NetworkRecoveryInterval  = TimeSpan.FromSeconds(10)
-        };
+        var policy = ResiliencePolicies.CreateRetryPolicy(_logger, $"RabbitMQ Publish to {queueName}");
 
         try
         {
-            return await factory.CreateConnectionAsync(clientProvidedName: "RabbitSchemaApi", cancellationToken: ct);
-        }
-        catch (BrokerUnreachableException ex)
-        {
-            _logger.LogError(ex, "Cannot connect to RabbitMQ at {Host}:{Port}", _settings.HostName, _settings.Port);
-            throw;
-        }
-    }
-
-    private async Task EnsureQueueDeclaredAsync(IChannel channel, string queueName, CancellationToken ct)
-    {
-        if (_declaredQueues.Contains(queueName))
-            return;
-
-        await channel.QueueDeclareAsync(
-            queue: queueName,
-            durable: true,         // survives broker restart
-            exclusive: false,      // shared across connections
-            autoDelete: false,     // doesn't disappear when unused
-            arguments: new Dictionary<string, object?>
+            await policy.ExecuteAsync(async () =>
             {
-                // Dead-letter exchange — unprocessable messages go here
-                ["x-dead-letter-exchange"] = _settings.DeadLetterExchange,
-                // Optional TTL: messages expire after this many ms if not consumed
-                // ["x-message-ttl"] = 86_400_000  // 24 h
-            },
-            cancellationToken: ct);
+                // Convert JsonNode to a string and wrap in a POCO to ensure correct serialization by EasyNetQ
+                var message = new JsonMessage(payloadString, schemaName);
+                await _bus.PubSub.PublishAsync(message, x => x.WithTopic(queueName), ct);
+            });
 
-        _declaredQueues.Add(queueName);
-        _logger.LogDebug("Queue '{Queue}' declared (durable=true, DLX='{DLX}')",
-            queueName, _settings.DeadLetterExchange);
-    }
+            _logger.LogInformation("Successfully published message {MessageId} to queue '{Queue}' via EasyNetQ.", messageId, queueName);
 
-    private static Dictionary<string, object?> BuildHeaders(IDictionary<string, object?>? extra)
-    {
-        var headers = new Dictionary<string, object?>
-        {
-            ["x-source"] = "RabbitSchemaApi",
-            ["x-schema-validated"] = "true"
-        };
-
-        if (extra is not null)
-            foreach (var (k, v) in extra)
-                headers[k] = v;
-
-        return headers;
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Disposal
-    // ──────────────────────────────────────────────────────────────────────────
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_channel is not null)
-        {
-            await _channel.CloseAsync();
-            await _channel.DisposeAsync();
+            return new PublishReceipt
+            {
+                MessageId = messageId,
+                Queue = queueName,
+                Exchange = _settings.ExchangeName,
+                PublishedAt = DateTimeOffset.UtcNow
+            };
         }
-
-        if (_connection is not null)
+        catch (Exception ex)
         {
-            await _connection.CloseAsync();
-            await _connection.DisposeAsync();
+            _logger.LogError(ex, "Failed to publish to RabbitMQ after retries. Falling back to DB storage.");
+
+            // Resolve IFinalizedBillRepository within a scope to avoid captive dependency
+            using var scope = _scopeFactory.CreateScope();
+            var repository = scope.ServiceProvider.GetRequiredService<IFinalizedBillRepository>();
+
+            // Fallback 1: Oracle DB failed_messages table
+            try
+            {
+                await repository.AddFailedMessageAsync(messageId, payloadString, queueName, ex.Message);
+                _logger.LogInformation("Message {MessageId} saved to failed_messages table.", messageId);
+            }
+            catch (Exception dbEx)
+            {
+                _logger.LogError(dbEx, "Failed to save to Oracle DB. Falling back to local filesystem.");
+
+                // Fallback 2: Local filesystem
+                var filePath = Path.Combine(_fallbackDir, $"{messageId}.json");
+                await File.WriteAllTextAsync(filePath, payloadString, ct);
+                _logger.LogWarning("Message {MessageId} saved to local fallback: {FilePath}", messageId, filePath);
+            }
+
+            return new PublishReceipt
+            {
+                MessageId = messageId,
+                Queue = queueName,
+                Exchange = "FALLBACK",
+                PublishedAt = DateTimeOffset.UtcNow
+            };
         }
-
-        _initLock.Dispose();
     }
-}
 
-/// <summary>Strongly-typed settings bound from appsettings.json "RabbitMQ" section.</summary>
-public sealed class RabbitMqSettings
-{
-    public string HostName           { get; set; } = "localhost";
-    public int    Port               { get; set; } = 5672;
-    public string UserName           { get; set; } = "guest";
-    public string Password           { get; set; } = "guest";
-    public string VirtualHost        { get; set; } = "/";
-    public string ExchangeName       { get; set; } = "";    // "" = default AMQP exchange
-    public string DeadLetterExchange { get; set; } = "dlx";
-}
-
-/// <summary>Centralised JSON serialiser options.</summary>
-internal static class JsonOptions
-{
-    public static readonly JsonSerializerOptions Default = new()
+    public void Dispose()
     {
-        WriteIndented = false,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+        (_bus as IDisposable)?.Dispose();
+    }
 }
