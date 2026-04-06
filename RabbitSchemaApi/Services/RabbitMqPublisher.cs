@@ -34,14 +34,13 @@ public sealed class RabbitMqPublisher : IRabbitMqPublisher
     public RabbitMqPublisher(
         IOptions<RabbitMqSettings> settings,
         ILogger<RabbitMqPublisher> logger,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        IBus bus)
     {
         _settings = settings.Value;
         _logger = logger;
         _scopeFactory = scopeFactory;
-
-        var connectionString = $"host={_settings.HostName};port={_settings.Port};username={_settings.UserName};password={_settings.Password};virtualHost={_settings.VirtualHost}";
-        _bus = RabbitHutch.CreateBus(connectionString);
+        _bus = bus;
 
         _fallbackDir = Path.Combine(AppContext.BaseDirectory, "FailedMessages");
         Directory.CreateDirectory(_fallbackDir);
