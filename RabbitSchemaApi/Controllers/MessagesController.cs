@@ -50,6 +50,7 @@ public sealed class MessagesController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>),          StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> PublishMessage(
         [FromRoute] string schemaName,
+        [FromBody]  JsonObject payload,
         [FromQuery] string? queueName,
         CancellationToken ct)
     {
@@ -62,29 +63,11 @@ public sealed class MessagesController : ControllerBase
                 string.Join(", ", _validator.RegisteredSchemas)));
         }
 
-        // ── 2. Read and parse the raw JSON body ───────────────────────────────
-        JsonNode? payloadNode;
-        try
-        {
-            using var reader = new StreamReader(Request.Body);
-            var rawJson = await reader.ReadToEndAsync(ct);
+        if (payload is null)
+            return BadRequest(ApiResponse<object>.Error("Request body must not be empty and must be a valid JSON object."));
 
-            if (string.IsNullOrWhiteSpace(rawJson))
-                return BadRequest(ApiResponse<object>.Error("Request body must not be empty."));
-
-            payloadNode = JsonNode.Parse(rawJson);
-
-            if (payloadNode is null)
-                return BadRequest(ApiResponse<object>.Error("Request body is not valid JSON."));
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogDebug(ex, "Malformed JSON in request body");
-            return BadRequest(ApiResponse<object>.Error($"Malformed JSON: {ex.Message}"));
-        }
-
-        // ── 3. Validate against the registered JSON Schema ────────────────────
-        var validationResult = await _validator.ValidateAsync(schemaName, payloadNode, ct);
+        // ── 2. Validate against the registered JSON Schema ────────────────────
+        var validationResult = await _validator.ValidateAsync(schemaName, payload, ct);
 
         if (!validationResult.IsValid)
         {
@@ -98,16 +81,16 @@ public sealed class MessagesController : ControllerBase
         }
 
         var targetQueue = queueName ?? schemaName;
-        var payloadString = payloadNode.ToJsonString();
+        var payloadString = payload.ToJsonString();
 
-        // ── 4. Publish to RabbitMQ (Immediate with fallback) ─────────────────
+        // ── 3. Publish to RabbitMQ (Immediate with fallback) ─────────────────
         PublishReceipt receipt;
         using (LogContext.PushProperty("SchemaName", schemaName))
         using (LogContext.PushProperty("TargetQueue", targetQueue))
         {
             receipt = await _publisher.PublishAsync(
                 queueName: targetQueue,
-                payload: payloadNode,
+                payload: payload,
                 headers: new Dictionary<string, object?>
                 {
                     ["x-schema-name"] = schemaName,
@@ -166,27 +149,16 @@ public sealed class MessagesController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>),             StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ValidateOnly(
         [FromRoute] string schemaName,
+        [FromBody]  JsonObject payload,
         CancellationToken ct)
     {
         if (!_validator.RegisteredSchemas.Contains(schemaName, StringComparer.OrdinalIgnoreCase))
             return NotFound(ApiResponse<object>.Error($"Schema '{schemaName}' is not registered."));
 
-        JsonNode? payloadNode;
-        try
-        {
-            using var reader = new StreamReader(Request.Body);
-            var rawJson = await reader.ReadToEndAsync(ct);
-            payloadNode = JsonNode.Parse(rawJson);
+        if (payload is null)
+            return BadRequest(ApiResponse<object>.Error("Request body must not be empty and must be a valid JSON object."));
 
-            if (payloadNode is null)
-                return BadRequest(ApiResponse<object>.Error("Request body is not valid JSON."));
-        }
-        catch (JsonException ex)
-        {
-            return BadRequest(ApiResponse<object>.Error($"Malformed JSON: {ex.Message}"));
-        }
-
-        var result = await _validator.ValidateAsync(schemaName, payloadNode, ct);
+        var result = await _validator.ValidateAsync(schemaName, payload, ct);
 
         var summary = new ValidationSummary(
             SchemaName : schemaName,

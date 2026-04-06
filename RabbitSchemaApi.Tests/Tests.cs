@@ -157,16 +157,14 @@ public class MessagesControllerTests
     private readonly IRabbitMqPublisher _publisher       = Substitute.For<IRabbitMqPublisher>();
     private readonly IBackgroundTaskQueue _taskQueue     = Substitute.For<IBackgroundTaskQueue>();
 
-    private MessagesController CreateController(string bodyJson)
+    private MessagesController CreateController()
     {
         var logger = NullLogger<MessagesController>.Instance;
         var controller = new MessagesController(_validator, _publisher, _taskQueue, logger);
 
-        // Set up a fake HttpContext with the provided JSON body
+        // Set up a fake HttpContext
         var httpContext = new DefaultHttpContext();
-        httpContext.Request.Body        = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(bodyJson));
-        httpContext.Request.ContentType = "application/json";
-        controller.ControllerContext    = new ControllerContext { HttpContext = httpContext };
+        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
 
         return controller;
     }
@@ -176,8 +174,9 @@ public class MessagesControllerTests
     {
         _validator.RegisteredSchemas.Returns(new List<string> { "order" }.AsReadOnly());
 
-        var controller = CreateController("{}");
-        var result = await controller.PublishMessage("invoice", null, CancellationToken.None);
+        var controller = CreateController();
+        var payload = new JsonObject();
+        var result = await controller.PublishMessage("invoice", payload, null, CancellationToken.None);
 
         Assert.IsType<NotFoundObjectResult>(result);
     }
@@ -191,8 +190,9 @@ public class MessagesControllerTests
             .Returns(SchemaValidationResult.Invalid(
                 [new ValidationError("$.currency", "Required property 'currency' is missing.")]));
 
-        var controller = CreateController("""{"orderId":"abc"}""");
-        var result = await controller.PublishMessage("order", null, CancellationToken.None);
+        var controller = CreateController();
+        var payload = new JsonObject { ["orderId"] = "abc" };
+        var result = await controller.PublishMessage("order", payload, null, CancellationToken.None);
 
         Assert.IsType<UnprocessableEntityObjectResult>(result);
     }
@@ -216,8 +216,9 @@ public class MessagesControllerTests
             .PublishAsync("order", Arg.Any<JsonNode>(), Arg.Any<IDictionary<string, object?>>(), Arg.Any<CancellationToken>())
             .Returns(receipt);
 
-        var controller = CreateController("""{"orderId":"3fa85f64-5717-4562-b3fc-2c963f66afa6"}""");
-        var result = await controller.PublishMessage("order", null, CancellationToken.None);
+        var controller = CreateController();
+        var payload = new JsonObject { ["orderId"] = "3fa85f64-5717-4562-b3fc-2c963f66afa6" };
+        var result = await controller.PublishMessage("order", payload, null, CancellationToken.None);
 
         Assert.IsType<AcceptedResult>(result);
         await _publisher.Received(1).PublishAsync(
@@ -235,7 +236,7 @@ public class MessagesControllerTests
         var schemas = new List<string> { "order", "shipment" }.AsReadOnly();
         _validator.RegisteredSchemas.Returns(schemas);
 
-        var controller = CreateController("{}");
+        var controller = CreateController();
         var result = controller.GetSchemas();
 
         var ok = Assert.IsType<OkObjectResult>(result);
