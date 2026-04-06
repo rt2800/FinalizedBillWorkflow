@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <!-- RabbitMQ client v7+ with async-first API -->
-    <PackageReference Include="EasyNetQ" Version="7.0.0" />
+    <PackageReference Include="EasyNetQ" Version="8.1.2" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0-preview.1.25080.5" />
     <PackageReference Include="Microsoft.OpenApi" Version="2.0.0-preview5" />
     <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.100" />

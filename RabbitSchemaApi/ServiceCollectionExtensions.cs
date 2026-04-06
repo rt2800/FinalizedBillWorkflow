@@ -1,4 +1,5 @@
 using System.Text;
+using EasyNetQ;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
@@ -44,6 +45,14 @@ public static class ServiceCollectionExtensions
         services.AddAuthorization();
 
         services.AddSingleton<ISchemaRepository, SchemaRepository>();
+
+        var rabbitSettings = configuration.GetSection("RabbitMQ").Get<RabbitMqSettings>();
+        if (rabbitSettings != null)
+        {
+            var connectionString = $"host={rabbitSettings.HostName};port={rabbitSettings.Port};username={rabbitSettings.UserName};password={rabbitSettings.Password};virtualHost={rabbitSettings.VirtualHost}";
+            RabbitHutch.AddEasyNetQ(services, connectionString);
+        }
+
         services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
 
         services.AddScoped<IFinalizedBillRepository, FinalizedBillRepository>();
