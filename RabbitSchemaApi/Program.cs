@@ -1,29 +1,26 @@
-using NLog;
-using NLog.Web;
 using RabbitSchemaApi;
 using RabbitSchemaApi.Middleware;
 using Scalar.AspNetCore;
 using Serilog;
+using Serilog.Events;
 
-var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
-logger.Debug("init main");
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
 
 try
 {
+    Log.Information("Starting web application");
     var builder = WebApplication.CreateBuilder(args);
 
     // ── Serilog for Audit/Exception Repository Context ──────────────────────
-    Log.Logger = new LoggerConfiguration()
-        .ReadFrom.Configuration(builder.Configuration)
+    builder.Host.UseSerilog((context, services, configuration) => configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
         .Enrich.FromLogContext()
-        .WriteTo.Console()
-        .CreateLogger();
-
-    builder.Host.UseSerilog();
-
-    // ── NLog ────────────────────────────────────────────────────────────────
-    builder.Logging.ClearProviders();
-    builder.Host.UseNLog();
+        .WriteTo.Console());
 
     // ── Infrastructure & Domain Services ────────────────────────────────────
     builder.Services.AddInfrastructure(builder.Configuration);
@@ -59,7 +56,7 @@ try
             opts.Theme                   = ScalarTheme.DeepSpace;
             opts.DefaultHttpClient       = new(ScalarTarget.CSharp, ScalarClient.HttpClient);
             opts.ShowSidebar             = true;
-            opts.HideDownloadButton      = false;
+            // opts.HideDownloadButton      = false; // Obsolete in Scalar 2.x
         });
 
         app.UseSwagger();
@@ -82,10 +79,10 @@ try
 }
 catch (Exception ex)
 {
-    logger.Error(ex, "Stopped program because of exception");
+    Log.Fatal(ex, "Application terminated unexpectedly");
     throw;
 }
 finally
 {
-    LogManager.Shutdown();
+    Log.CloseAndFlush();
 }

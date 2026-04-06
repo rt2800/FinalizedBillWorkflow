@@ -63,8 +63,27 @@ public sealed class PersistentBackgroundTaskQueue : IBackgroundTaskQueue
 
     public async ValueTask<BackgroundTask> DequeueAsync(CancellationToken ct)
     {
-        var task = await _queue.Reader.ReadAsync(ct);
-        return task;
+        try
+        {
+            // Prefer ReadAsync for cleaner awaitable task
+            return await _queue.Reader.ReadAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            // Re-throw or handle as per caller's expectation.
+            // BackgroundTaskProcessor handles this.
+            throw;
+        }
+        catch (System.Threading.Channels.ChannelClosedException)
+        {
+            _logger.LogWarning("BackgroundTaskQueue channel was closed while dequeuing.");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error dequeuing background task.");
+            throw;
+        }
     }
 
     public void MarkComplete(string taskId)
