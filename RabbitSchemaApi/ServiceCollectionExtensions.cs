@@ -98,36 +98,46 @@ public static class ServiceCollectionExtensions
             options.AddDocumentTransformer((doc, _, _) =>
             {
                 doc.Components ??= new OpenApiComponents();
-                doc.Components.SecuritySchemes.Add("Bearer", new OpenApiSecurityScheme
+                if (doc.Components.SecuritySchemes != null)
                 {
-                    Type = SecuritySchemeType.Http,
-                    Scheme = "bearer",
-                    BearerFormat = "JWT",
-                    In = ParameterLocation.Header,
-                    Description = "JWT Authorization header using the Bearer scheme."
-                });
-
-                doc.SecurityRequirements.Add(new OpenApiSecurityRequirement
-                {
+                    doc.Components.SecuritySchemes.Add("Bearer", new OpenApiSecurityScheme
                     {
-                        new OpenApiSecurityScheme
-                        {
-                            Reference = new OpenApiReference
-                            {
-                                Type = ReferenceType.SecurityScheme,
-                                Id = "Bearer"
-                            }
-                        },
-                        Array.Empty<string>()
-                    }
-                });
+                        Type = SecuritySchemeType.Http,
+                        Scheme = "bearer",
+                        BearerFormat = "JWT",
+                        In = ParameterLocation.Header,
+                        Description = "JWT Authorization header using the Bearer scheme."
+                    });
+                }
 
-                doc.Info.Title       = "RabbitSchema API";
-                doc.Info.Version     = "v1";
-                doc.Info.Description =
-                    "Accepts JSON payloads, validates them against registered OpenAPI/JSON Schema " +
-                    "definitions, and publishes conforming messages to RabbitMQ.";
-                doc.Info.Contact = new() { Name = "Platform Team", Email = "platform@example.com" };
+                if (doc.SecurityRequirements != null)
+                {
+                    doc.SecurityRequirements.Add(new OpenApiSecurityRequirement
+                    {
+                        {
+                            new OpenApiSecurityScheme
+                            {
+                                Reference = new OpenApiReference
+                                {
+                                    Type = ReferenceType.SecurityScheme,
+                                    Id = "Bearer"
+                                }
+                            },
+                            Array.Empty<string>()
+                        }
+                    });
+                }
+
+                if (doc.Info != null)
+                {
+                    doc.Info.Title = "RabbitSchema API";
+                    doc.Info.Version = "v1";
+                    doc.Info.Description =
+                        "Accepts JSON payloads, validates them against registered OpenAPI/JSON Schema " +
+                        "definitions, and publishes conforming messages to RabbitMQ.";
+                    doc.Info.Contact = new() { Name = "Platform Team", Email = "platform@example.com" };
+                }
+
                 return Task.CompletedTask;
             });
         });
