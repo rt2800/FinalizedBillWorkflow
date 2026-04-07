@@ -85,11 +85,26 @@ public sealed class RabbitMqPublisher : IRabbitMqPublisher
             using var scope = _scopeFactory.CreateScope();
             var repository = scope.ServiceProvider.GetRequiredService<IFinalizedBillRepository>();
 
-            // Fallback 1: Oracle DB failed_messages table
+            // Fallback 1: Oracle DB exception table
             try
             {
-                await repository.AddFailedMessageAsync(messageId, payloadString, queueName, ex.Message);
-                _logger.LogInformation("Message {MessageId} saved to failed_messages table.", messageId);
+                var micBillId = headers?.ContainsKey("x-mic-bill-id") == true ? headers["x-mic-bill-id"]?.ToString() ?? "unknown" : "unknown";
+                var correlationId = headers?.ContainsKey("x-correlation-id") == true ? headers["x-correlation-id"]?.ToString() ?? "unknown" : "unknown";
+                var emailSender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
+
+                await repository.AddExceptionLogAsync(ex, micBillId, correlationId, $"RabbitMQ Publish Fallback to {queueName}");
+
+                var subject = $"RabbitMQ Publication Failure: {ex.Message}";
+                var body = $"A message failed to publish to RabbitMQ.\n\n" +
+                           $"MessageId: {messageId}\n" +
+                           $"Queue: {queueName}\n" +
+                           $"MicBillId: {micBillId}\n" +
+                           $"CorrelationId: {correlationId}\n" +
+                           $"Exception: {ex.Message}\n\n" +
+                           $"Stack Trace:\n{ex.StackTrace}";
+
+                await emailSender.SendEmailAsync(subject, body);
+                _logger.LogInformation("Message {MessageId} publication failure logged to DB and email sent.", messageId);
             }
             catch (Exception dbEx)
             {

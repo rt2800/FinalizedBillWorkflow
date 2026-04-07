@@ -83,10 +83,20 @@ public sealed class MessagesController : ControllerBase
         var targetQueue = queueName ?? schemaName;
         var payloadString = payload.ToJsonString();
 
+        // Extract MicBillId from payload and CorrelationId from headers
+        var micBillId = payload["MicBillId"]?.ToString() ?? payload["orderId"]?.ToString() ?? "unknown";
+        var correlationId = Request.Headers["x-correlation-id"].ToString();
+        if (string.IsNullOrEmpty(correlationId))
+        {
+            correlationId = HttpContext.TraceIdentifier;
+        }
+
         // ── 3. Publish to RabbitMQ (Immediate with fallback) ─────────────────
         PublishReceipt receipt;
         using (LogContext.PushProperty("SchemaName", schemaName))
         using (LogContext.PushProperty("TargetQueue", targetQueue))
+        using (LogContext.PushProperty("MicBillId", micBillId))
+        using (LogContext.PushProperty("CorrelationId", correlationId))
         {
             receipt = await _publisher.PublishAsync(
                 queueName: targetQueue,
@@ -95,7 +105,8 @@ public sealed class MessagesController : ControllerBase
                 {
                     ["x-schema-name"] = schemaName,
                     ["x-client-ip"] = HttpContext.Connection.RemoteIpAddress?.ToString(),
-                    ["x-correlation-id"] = HttpContext.TraceIdentifier
+                    ["x-correlation-id"] = correlationId,
+                    ["x-mic-bill-id"] = micBillId
                 },
                 ct: ct);
 
@@ -111,7 +122,9 @@ public sealed class MessagesController : ControllerBase
             Id = receipt.MessageId,
             Type = BackgroundTaskType.SftpUpload,
             Payload = payloadString,
-            Target = targetQueue
+            Target = targetQueue,
+            MicBillId = micBillId,
+            CorrelationId = correlationId
         });
 
         await _taskQueue.EnqueueAsync(new BackgroundTask
@@ -119,7 +132,9 @@ public sealed class MessagesController : ControllerBase
             Id = receipt.MessageId,
             Type = BackgroundTaskType.AuditLog,
             Payload = payloadString,
-            Target = targetQueue
+            Target = targetQueue,
+            MicBillId = micBillId,
+            CorrelationId = correlationId
         });
 
         return Accepted(ApiResponse<PublishReceipt>.Ok(receipt, "Payload validated and publication initiated."));
