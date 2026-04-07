@@ -1,8 +1,8 @@
 using System.Text.Json.Nodes;
-using RabbitSchemaApi.Repositories;
-using RabbitSchemaApi.Services;
+using Mbr.Api.Workflow.FinalizedBill.Repositories;
+using Mbr.Api.Workflow.FinalizedBill.Services;
 
-namespace RabbitSchemaApi.BackgroundServices;
+namespace Mbr.Api.Workflow.FinalizedBill.BackgroundServices;
 
 public sealed class BackgroundTaskProcessor : BackgroundService
 {

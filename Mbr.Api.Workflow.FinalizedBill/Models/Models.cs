@@ -1,4 +1,4 @@
-namespace RabbitSchemaApi.Models;
+namespace Mbr.Api.Workflow.FinalizedBill.Models;
 
 /// <summary>
 /// Unified API response envelope returned on every endpoint.

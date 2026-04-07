@@ -4,9 +4,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RabbitSchemaApi", "RabbitSchemaApi\RabbitSchemaApi.csproj", "{A1B2C3D4-0001-0001-0001-000000000001}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mbr.Api.Workflow.FinalizedBill", "Mbr.Api.Workflow.FinalizedBill\Mbr.Api.Workflow.FinalizedBill.csproj", "{A1B2C3D4-0001-0001-0001-000000000001}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RabbitSchemaApi.Tests", "RabbitSchemaApi.Tests\RabbitSchemaApi.Tests.csproj", "{A1B2C3D4-0002-0002-0002-000000000002}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mbr.Api.Workflow.FinalizedBill.Tests", "Mbr.Api.Workflow.FinalizedBill.Tests\Mbr.Api.Workflow.FinalizedBill.Tests.csproj", "{A1B2C3D4-0002-0002-0002-000000000002}"
 EndProject
 
 Global
