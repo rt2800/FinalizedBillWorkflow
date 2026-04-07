@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using Json.Schema;
 using Microsoft.Extensions.Options;
 using Mbr.Api.Workflow.FinalizedBill.Models;
@@ -6,10 +7,11 @@ namespace Mbr.Api.Workflow.FinalizedBill.Repositories;
 
 public sealed class SchemaRepository : ISchemaRepository
 {
-    private readonly Dictionary<string, JsonSchema> _schemas = new(StringComparer.OrdinalIgnoreCase);
+    private readonly FrozenDictionary<string, JsonSchema> _schemas;
+    private readonly IReadOnlyList<string> _registeredSchemas;
     private readonly ILogger<SchemaRepository> _logger;
 
-    public IReadOnlyList<string> RegisteredSchemas => _schemas.Keys.ToList().AsReadOnly();
+    public IReadOnlyList<string> RegisteredSchemas => _registeredSchemas;
 
     public SchemaRepository(
         IConfiguration configuration,
@@ -24,6 +26,8 @@ public sealed class SchemaRepository : ISchemaRepository
 
         if (entries.Count == 0)
             _logger.LogWarning("No schemas found in SchemaRegistry configuration section.");
+
+        var dict = new Dictionary<string, JsonSchema>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var entry in entries)
         {
@@ -41,7 +45,7 @@ public sealed class SchemaRepository : ISchemaRepository
             {
                 var json = File.ReadAllText(fullPath);
                 var schema = JsonSchema.FromText(json);
-                _schemas[entry.Name] = schema;
+                dict[entry.Name] = schema;
                 _logger.LogInformation("Loaded schema '{Name}' v{Version} from {Path}",
                     entry.Name, entry.Version, fullPath);
             }
@@ -52,6 +56,9 @@ public sealed class SchemaRepository : ISchemaRepository
                     $"Cannot start: schema '{entry.Name}' at '{fullPath}' is not valid JSON Schema.", ex);
             }
         }
+
+        _schemas = dict.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+        _registeredSchemas = _schemas.Keys.ToList().AsReadOnly();
     }
 
     public JsonSchema? GetSchema(string schemaName)

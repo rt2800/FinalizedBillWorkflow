@@ -10,7 +10,7 @@ public interface ISchemaValidationService
     /// <summary>
     /// Validates a raw JSON string against the schema registered under <paramref name="schemaName"/>.
     /// </summary>
-    Task<SchemaValidationResult> ValidateAsync(string schemaName, JsonNode payload, CancellationToken ct = default);
+    ValueTask<SchemaValidationResult> ValidateAsync(string schemaName, JsonNode payload, CancellationToken ct = default);
 
     /// <summary>Returns the names of all registered schemas.</summary>
     IReadOnlyList<string> RegisteredSchemas { get; }
@@ -22,6 +22,12 @@ public interface ISchemaValidationService
 /// </summary>
 public sealed class SchemaValidationService : ISchemaValidationService
 {
+    private static readonly EvaluationOptions _defaultOptions = new()
+    {
+        OutputFormat = OutputFormat.List,
+        EvaluateAs = SpecVersion.Draft202012
+    };
+
     private readonly ISchemaRepository _repository;
     private readonly ILogger<SchemaValidationService> _logger;
 
@@ -35,7 +41,7 @@ public sealed class SchemaValidationService : ISchemaValidationService
         _logger = logger;
     }
 
-    public Task<SchemaValidationResult> ValidateAsync(
+    public ValueTask<SchemaValidationResult> ValidateAsync(
         string schemaName,
         JsonNode payload,
         CancellationToken ct = default)
@@ -44,57 +50,60 @@ public sealed class SchemaValidationService : ISchemaValidationService
         if (schema == null)
         {
             // Unknown schema — return a clear error rather than silently failing
-            return Task.FromResult(SchemaValidationResult.Invalid(
+            return ValueTask.FromResult(SchemaValidationResult.Invalid(
             [
                 new ValidationError("$", $"No schema registered with name '{schemaName}'.")
             ]));
         }
 
-        // EvaluationOptions controls how deeply the result tree is populated.
-        // OutputFormat.List gives us a flat list of all errors — ideal for API responses.
-        var options = new EvaluationOptions
-        {
-            OutputFormat = OutputFormat.List,
-            EvaluateAs = SpecVersion.Draft202012
-        };
-
-        var result = schema.Evaluate(payload, options);
+        var result = schema.Evaluate(payload, _defaultOptions);
 
         if (result.IsValid)
-            return Task.FromResult(SchemaValidationResult.Valid());
+            return ValueTask.FromResult(SchemaValidationResult.Valid());
 
         // Flatten the nested error tree into a list of ValidationError records.
-        var errors = FlattenErrors(result).ToList();
+        var errors = FlattenErrors(result);
         _logger.LogDebug("Schema '{Name}' validation failed with {Count} error(s)", schemaName, errors.Count);
 
-        return Task.FromResult(SchemaValidationResult.Invalid(errors));
+        return ValueTask.FromResult(SchemaValidationResult.Invalid(errors));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Helpers
     // ──────────────────────────────────────────────────────────────────────────
 
-    private static IEnumerable<ValidationError> FlattenErrors(EvaluationResults results)
+    private static List<ValidationError> FlattenErrors(EvaluationResults results)
     {
-        // The evaluation tree can be deeply nested; we recurse to collect leaf errors.
-        if (!results.IsValid)
-        {
-            var path = results.InstanceLocation?.ToString() ?? "$";
+        var errors = new List<ValidationError>();
+        var stack = new Stack<EvaluationResults>();
+        stack.Push(results);
 
-            if (results.Errors is { Count: > 0 })
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (current.IsValid) continue;
+
+            var path = current.InstanceLocation?.ToString() ?? "$";
+
+            if (current.Errors is { Count: > 0 })
             {
-                foreach (var (keyword, message) in results.Errors)
+                foreach (var (keyword, message) in current.Errors)
                 {
-                    yield return new ValidationError(path, message, keyword);
+                    errors.Add(new ValidationError(path, message, keyword));
                 }
             }
 
-            if (results.Details is { Count: > 0 })
+            if (current.Details is { Count: > 0 })
             {
-                foreach (var detail in results.Details)
-                foreach (var error in FlattenErrors(detail))
-                    yield return error;
+                // Push details to stack to process them iteratively
+                // Reversing to maintain same order as recursive if desired, but here order usually doesn't matter much for a flat list
+                foreach (var detail in current.Details)
+                {
+                    stack.Push(detail);
+                }
             }
         }
+
+        return errors;
     }
 }
