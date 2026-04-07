@@ -2,13 +2,13 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using RabbitSchemaApi.Models;
-using RabbitSchemaApi.Services;
-using RabbitSchemaApi.Repositories;
-using RabbitSchemaApi.BackgroundServices;
+using Mbr.Api.Workflow.FinalizedBill.Models;
+using Mbr.Api.Workflow.FinalizedBill.Services;
+using Mbr.Api.Workflow.FinalizedBill.Repositories;
+using Mbr.Api.Workflow.FinalizedBill.BackgroundServices;
 using Serilog.Context;
 
-namespace RabbitSchemaApi.Controllers;
+namespace Mbr.Api.Workflow.FinalizedBill.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]

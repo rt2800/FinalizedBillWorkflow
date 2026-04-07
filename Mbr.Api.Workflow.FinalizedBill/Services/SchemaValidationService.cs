@@ -1,9 +1,9 @@
 using System.Text.Json.Nodes;
 using Json.Schema;
-using RabbitSchemaApi.Models;
-using RabbitSchemaApi.Repositories;
+using Mbr.Api.Workflow.FinalizedBill.Models;
+using Mbr.Api.Workflow.FinalizedBill.Repositories;
 
-namespace RabbitSchemaApi.Services;
+namespace Mbr.Api.Workflow.FinalizedBill.Services;
 
 public interface ISchemaValidationService
 {

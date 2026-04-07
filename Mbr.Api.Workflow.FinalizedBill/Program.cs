@@ -1,5 +1,5 @@
-using RabbitSchemaApi;
-using RabbitSchemaApi.Middleware;
+using Mbr.Api.Workflow.FinalizedBill;
+using Mbr.Api.Workflow.FinalizedBill.Middleware;
 using Scalar.AspNetCore;
 using Serilog;
 using Serilog.Events;
@@ -52,7 +52,7 @@ try
         app.MapOpenApi();
         app.MapScalarApiReference(opts =>
         {
-            opts.Title                   = "RabbitSchema API";
+            opts.Title                   = "Mbr.Api.Workflow.FinalizedBill API";
             opts.Theme                   = ScalarTheme.DeepSpace;
             opts.DefaultHttpClient       = new(ScalarTarget.CSharp, ScalarClient.HttpClient);
             opts.ShowSidebar             = true;
@@ -62,7 +62,7 @@ try
         app.UseSwagger();
         app.UseSwaggerUI(c =>
         {
-            c.SwaggerEndpoint("/swagger/v1/swagger.json", "RabbitSchema API V1");
+            c.SwaggerEndpoint("/swagger/v1/swagger.json", "Mbr.Api.Workflow.FinalizedBill API V1");
         });
     }
 

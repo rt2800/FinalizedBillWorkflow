@@ -1,4 +1,4 @@
-# RabbitSchemaApi
+# Mbr.Api.Workflow.FinalizedBill
 
 A .NET 10 Web API that **validates JSON payloads against OpenAPI/JSON Schema definitions** and
 **publishes conforming messages to RabbitMQ**. Non-conforming payloads are rejected with detailed
@@ -39,7 +39,7 @@ HTTP POST /api/messages/{schemaName}
 ## Project Structure
 
 ```
-RabbitSchemaApi/
+Mbr.Api.Workflow.FinalizedBill/
 ├── Controllers/
 │   └── MessagesController.cs      # 3 endpoints: publish, validate-only, list schemas
 ├── Middleware/
@@ -57,7 +57,7 @@ RabbitSchemaApi/
 ├── docker-compose.yml             # RabbitMQ + Management UI
 └── rabbitmq-definitions.json      # Pre-configures DLX and dead-letter queue
 
-RabbitSchemaApi.Tests/
+Mbr.Api.Workflow.FinalizedBill.Tests/
 └── Tests.cs                       # Unit tests for validator + controller
 ```
 
@@ -75,7 +75,7 @@ docker compose up -d
 ### 2. Run the API
 
 ```bash
-cd RabbitSchemaApi
+cd Mbr.Api.Workflow.FinalizedBill
 dotnet run
 # API         → https://localhost:7xxx
 # Scalar UI   → https://localhost:7xxx/scalar/v1
@@ -216,7 +216,7 @@ dotnet run
 ## Running Tests
 
 ```bash
-dotnet test RabbitSchemaApi.Tests
+dotnet test Mbr.Api.Workflow.FinalizedBill.Tests
 ```
 
 Tests use NSubstitute to mock `IRabbitMqPublisher` and `ISchemaValidationService`,

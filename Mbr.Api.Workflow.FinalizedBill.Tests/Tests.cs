@@ -4,14 +4,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using RabbitSchemaApi.Controllers;
-using RabbitSchemaApi.Models;
-using RabbitSchemaApi.Services;
-using RabbitSchemaApi.Repositories;
-using RabbitSchemaApi.BackgroundServices;
+using Mbr.Api.Workflow.FinalizedBill.Controllers;
+using Mbr.Api.Workflow.FinalizedBill.Models;
+using Mbr.Api.Workflow.FinalizedBill.Services;
+using Mbr.Api.Workflow.FinalizedBill.Repositories;
+using Mbr.Api.Workflow.FinalizedBill.BackgroundServices;
 using Xunit;
 
-namespace RabbitSchemaApi.Tests;
+namespace Mbr.Api.Workflow.FinalizedBill.Tests;
 
 // ── SchemaValidationService Tests ─────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 using Json.Schema;
 
-namespace RabbitSchemaApi.Repositories;
+namespace Mbr.Api.Workflow.FinalizedBill.Repositories;
 
 public interface ISchemaRepository
 {

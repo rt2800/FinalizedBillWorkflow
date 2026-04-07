@@ -3,9 +3,9 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
-using RabbitSchemaApi.Models;
+using Mbr.Api.Workflow.FinalizedBill.Models;
 
-namespace RabbitSchemaApi.Controllers;
+namespace Mbr.Api.Workflow.FinalizedBill.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -28,8 +28,8 @@ public sealed class AuthController : ControllerBase
     public IActionResult GenerateToken()
     {
         var jwtKey = _configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is missing.");
-        var jwtIssuer = _configuration["Jwt:Issuer"] ?? "RabbitSchemaApi";
-        var jwtAudience = _configuration["Jwt:Audience"] ?? "RabbitSchemaApiUsers";
+        var jwtIssuer = _configuration["Jwt:Issuer"] ?? "Mbr.Api.Workflow.FinalizedBill";
+        var jwtAudience = _configuration["Jwt:Audience"] ?? "Mbr.Api.Workflow.FinalizedBillUsers";
         var expireMinutes = int.TryParse(_configuration["Jwt:ExpireMinutes"], out var min) ? min : 60;
 
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));

@@ -1,12 +1,12 @@
 using System.Text.Json.Nodes;
 using EasyNetQ;
 using Microsoft.Extensions.Options;
-using RabbitSchemaApi.Models;
-using RabbitSchemaApi.Repositories;
-using RabbitSchemaApi.Resilience;
+using Mbr.Api.Workflow.FinalizedBill.Models;
+using Mbr.Api.Workflow.FinalizedBill.Repositories;
+using Mbr.Api.Workflow.FinalizedBill.Resilience;
 using Polly;
 
-namespace RabbitSchemaApi.Services;
+namespace Mbr.Api.Workflow.FinalizedBill.Services;
 
 /// <summary>
 /// A wrapper for JSON messages published via EasyNetQ.

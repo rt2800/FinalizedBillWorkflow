@@ -1,8 +1,8 @@
 using Json.Schema;
 using Microsoft.Extensions.Options;
-using RabbitSchemaApi.Models;
+using Mbr.Api.Workflow.FinalizedBill.Models;
 
-namespace RabbitSchemaApi.Repositories;
+namespace Mbr.Api.Workflow.FinalizedBill.Repositories;
 
 public sealed class SchemaRepository : ISchemaRepository
 {
