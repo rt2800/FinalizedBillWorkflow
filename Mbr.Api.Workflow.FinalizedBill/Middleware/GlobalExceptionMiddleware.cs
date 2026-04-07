@@ -1,8 +1,8 @@
 using System.Net;
 using System.Text.Json;
-using RabbitSchemaApi.Models;
+using Mbr.Api.Workflow.FinalizedBill.Models;
 
-namespace RabbitSchemaApi.Middleware;
+namespace Mbr.Api.Workflow.FinalizedBill.Middleware;
 
 /// <summary>
 /// Global exception handler — catches unhandled exceptions, logs them, and

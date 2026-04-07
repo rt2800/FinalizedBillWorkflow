@@ -1,11 +1,11 @@
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Options;
 using Renci.SshNet;
-using RabbitSchemaApi.Models;
-using RabbitSchemaApi.Resilience;
+using Mbr.Api.Workflow.FinalizedBill.Models;
+using Mbr.Api.Workflow.FinalizedBill.Resilience;
 using Polly;
 
-namespace RabbitSchemaApi.Services;
+namespace Mbr.Api.Workflow.FinalizedBill.Services;
 
 public interface ISftpService
 {

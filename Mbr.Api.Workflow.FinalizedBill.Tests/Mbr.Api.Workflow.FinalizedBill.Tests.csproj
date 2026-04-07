@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\RabbitSchemaApi\RabbitSchemaApi.csproj" />
+    <ProjectReference Include="..\Mbr.Api.Workflow.FinalizedBill\Mbr.Api.Workflow.FinalizedBill.csproj" />
   </ItemGroup>
 
 </Project>

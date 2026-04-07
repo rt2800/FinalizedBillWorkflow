@@ -3,10 +3,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Oracle.ManagedDataAccess.Client;
 using Serilog.Context;
-using RabbitSchemaApi.Resilience;
+using Mbr.Api.Workflow.FinalizedBill.Resilience;
 using Polly;
 
-namespace RabbitSchemaApi.Repositories;
+namespace Mbr.Api.Workflow.FinalizedBill.Repositories;
 
 public interface IFinalizedBillRepository
 {

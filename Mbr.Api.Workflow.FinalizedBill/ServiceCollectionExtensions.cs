@@ -4,12 +4,12 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using RabbitSchemaApi.BackgroundServices;
-using RabbitSchemaApi.Models;
-using RabbitSchemaApi.Repositories;
-using RabbitSchemaApi.Services;
+using Mbr.Api.Workflow.FinalizedBill.BackgroundServices;
+using Mbr.Api.Workflow.FinalizedBill.Models;
+using Mbr.Api.Workflow.FinalizedBill.Repositories;
+using Mbr.Api.Workflow.FinalizedBill.Services;
 
-namespace RabbitSchemaApi;
+namespace Mbr.Api.Workflow.FinalizedBill;
 
 public static class ServiceCollectionExtensions
 {
@@ -20,8 +20,8 @@ public static class ServiceCollectionExtensions
 
         // JWT Authentication setup
         var jwtKey = configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is missing from configuration.");
-        var jwtIssuer = configuration["Jwt:Issuer"] ?? "RabbitSchemaApi";
-        var jwtAudience = configuration["Jwt:Audience"] ?? "RabbitSchemaApiUsers";
+        var jwtIssuer = configuration["Jwt:Issuer"] ?? "Mbr.Api.Workflow.FinalizedBill";
+        var jwtAudience = configuration["Jwt:Audience"] ?? "Mbr.Api.Workflow.FinalizedBillUsers";
 
         services.AddAuthentication(options =>
         {
@@ -139,7 +139,7 @@ public static class ServiceCollectionExtensions
 
                 if (doc.Info != null)
                 {
-                    doc.Info.Title = "RabbitSchema API";
+                    doc.Info.Title = "Mbr.Api.Workflow.FinalizedBill API";
                     doc.Info.Version = "v1";
                     doc.Info.Description =
                         "Accepts JSON payloads, validates them against registered OpenAPI/JSON Schema " +

@@ -2,7 +2,7 @@ using Polly;
 using Polly.Contrib.WaitAndRetry;
 using Polly.Retry;
 
-namespace RabbitSchemaApi.Resilience;
+namespace Mbr.Api.Workflow.FinalizedBill.Resilience;
 
 public static class ResiliencePolicies
 {

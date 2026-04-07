@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace RabbitSchemaApi.BackgroundServices;
+namespace Mbr.Api.Workflow.FinalizedBill.BackgroundServices;
 
 public enum BackgroundTaskType
 {
