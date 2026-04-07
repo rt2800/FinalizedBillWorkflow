@@ -1,6 +1,9 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Mbr.Api.Workflow.FinalizedBill.Models;
+using Mbr.Api.Workflow.FinalizedBill.Repositories;
+using Mbr.Api.Workflow.FinalizedBill.Services;
 
 namespace Mbr.Api.Workflow.FinalizedBill.Middleware;
 
@@ -43,8 +46,36 @@ public sealed class GlobalExceptionMiddleware
                 context.Request.Path,
                 context.TraceIdentifier);
 
+            await HandleExceptionAsync(context, ex);
             await WriteErrorResponseAsync(context, ex);
         }
+    }
+
+    private static async Task HandleExceptionAsync(HttpContext context, Exception ex)
+    {
+        var repository = context.RequestServices.GetRequiredService<IFinalizedBillRepository>();
+        var emailSender = context.RequestServices.GetRequiredService<IEmailSender>();
+
+        var correlationId = context.Request.Headers["x-correlation-id"].ToString();
+        if (string.IsNullOrEmpty(correlationId))
+        {
+            correlationId = context.TraceIdentifier;
+        }
+
+        // We don't easily have MicBillId here as the body might have been consumed or not yet parsed.
+        // In a real scenario, we might want to use a custom middleware to buffer the request body if needed.
+
+        await repository.AddExceptionLogAsync(ex, correlationId: correlationId, context: $"{context.Request.Method} {context.Request.Path}");
+
+        var subject = $"Critical Error in Mbr.Api.Workflow.FinalizedBill: {ex.Message}";
+        var body = $"An unhandled exception occurred.\n\n" +
+                   $"Method: {context.Request.Method}\n" +
+                   $"Path: {context.Request.Path}\n" +
+                   $"CorrelationId: {correlationId}\n" +
+                   $"Exception: {ex.Message}\n\n" +
+                   $"Stack Trace:\n{ex.StackTrace}";
+
+        await emailSender.SendEmailAsync(subject, body);
     }
 
     private static async Task WriteErrorResponseAsync(HttpContext context, Exception ex)

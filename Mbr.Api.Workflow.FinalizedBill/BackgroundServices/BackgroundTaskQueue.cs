@@ -15,6 +15,8 @@ public sealed class BackgroundTask
     public BackgroundTaskType Type { get; set; }
     public string Payload { get; set; } = string.Empty;
     public string? Target { get; set; } // e.g., QueueName or RemotePath
+    public string? MicBillId { get; set; }
+    public string? CorrelationId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

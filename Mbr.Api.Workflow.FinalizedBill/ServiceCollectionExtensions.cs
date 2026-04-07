@@ -17,6 +17,7 @@ public static class ServiceCollectionExtensions
     {
         services.Configure<RabbitMqSettings>(configuration.GetSection("RabbitMQ"));
         services.Configure<SftpSettings>(configuration.GetSection("Sftp"));
+        services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
 
         // JWT Authentication setup
         var jwtKey = configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is missing from configuration.");
@@ -64,6 +65,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<ISchemaValidationService, SchemaValidationService>();
         services.AddSingleton<ISftpService, SftpService>();
+        services.AddSingleton<IEmailSender, EmailSender>();
 
         // Background Processing
         services.AddSingleton<IBackgroundTaskQueue, PersistentBackgroundTaskQueue>();
