@@ -6,7 +6,8 @@ namespace Mbr.Api.Workflow.FinalizedBill.BackgroundServices;
 public enum BackgroundTaskType
 {
     SftpUpload,
-    AuditLog
+    AuditLog,
+    BemPost
 }
 
 public sealed class BackgroundTask

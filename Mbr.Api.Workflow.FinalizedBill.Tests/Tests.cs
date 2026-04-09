@@ -156,11 +156,12 @@ public class MessagesControllerTests
     private readonly ISchemaValidationService _validator = Substitute.For<ISchemaValidationService>();
     private readonly IRabbitMqPublisher _publisher       = Substitute.For<IRabbitMqPublisher>();
     private readonly IBackgroundTaskQueue _taskQueue     = Substitute.For<IBackgroundTaskQueue>();
+    private readonly IExternalApiService _externalApi    = Substitute.For<IExternalApiService>();
 
     private MessagesController CreateController()
     {
         var logger = NullLogger<MessagesController>.Instance;
-        var controller = new MessagesController(_validator, _publisher, _taskQueue, logger);
+        var controller = new MessagesController(_validator, _publisher, _taskQueue, _externalApi, logger);
 
         // Set up a fake HttpContext
         var httpContext = new DefaultHttpContext();
