@@ -94,3 +94,13 @@ public sealed record ValidationSummary(
     bool IsValid,
     int ErrorCount,
     IReadOnlyList<ValidationError> Errors);
+
+/// <summary>
+/// Configuration for external BEM and Client endpoints.
+/// </summary>
+public sealed class ExternalEndpointsSettings
+{
+    public string ClientEndpointUrl { get; set; } = string.Empty;
+    public string BemEndpointUrl { get; set; } = string.Empty;
+    public string BemServiceToken { get; set; } = string.Empty;
+}

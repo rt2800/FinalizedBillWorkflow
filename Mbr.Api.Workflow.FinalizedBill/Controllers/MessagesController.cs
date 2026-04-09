@@ -18,17 +18,20 @@ public sealed class MessagesController : ControllerBase
     private readonly ISchemaValidationService _validator;
     private readonly IRabbitMqPublisher _publisher;
     private readonly IBackgroundTaskQueue _taskQueue;
+    private readonly IExternalApiService _externalApi;
     private readonly ILogger<MessagesController> _logger;
 
     public MessagesController(
         ISchemaValidationService validator,
         IRabbitMqPublisher publisher,
         IBackgroundTaskQueue taskQueue,
+        IExternalApiService externalApi,
         ILogger<MessagesController> logger)
     {
         _validator = validator;
         _publisher = publisher;
         _taskQueue = taskQueue;
+        _externalApi = externalApi;
         _logger    = logger;
     }
 
@@ -151,6 +154,94 @@ public sealed class MessagesController : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<string>>.Ok(
             _validator.RegisteredSchemas,
             $"{_validator.RegisteredSchemas.Count} schema(s) registered."));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // POST /api/messages/acceptstatus
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Accepts a status update. If the format matches a specific Bill status structure,
+    /// it is forwarded synchronously to the Client endpoint.
+    /// Otherwise, it is processed as a generic JSON: enqueued for BEM post and SFTP upload.
+    /// </summary>
+    [HttpPost("acceptstatus")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> AcceptStatus(
+        [FromBody] JsonObject payload,
+        CancellationToken ct)
+    {
+        var correlationId = Request.Headers["x-correlation-id"].ToString();
+        if (string.IsNullOrEmpty(correlationId))
+        {
+            correlationId = HttpContext.TraceIdentifier;
+        }
+
+        var payloadString = payload.ToJsonString();
+
+        // ── 1. Determine if it matches the specific format ────────────────────
+        // { "BillId": "...", "BillSource": "...", "Status": 0|1, "BatchCorrelationId": "...", "Error": [...] }
+        bool isSpecificFormat =
+            payload.ContainsKey("BillId") &&
+            payload.ContainsKey("BillSource") &&
+            payload.ContainsKey("Status") &&
+            payload.ContainsKey("BatchCorrelationId") &&
+            payload.ContainsKey("Error");
+
+        if (isSpecificFormat)
+        {
+            var statusNode = payload["Status"];
+            if (statusNode is JsonValue jsonValue && jsonValue.TryGetValue<int>(out var statusValue))
+            {
+                if (statusValue != 0 && statusValue != 1)
+                {
+                    isSpecificFormat = false;
+                }
+            }
+            else
+            {
+                isSpecificFormat = false;
+            }
+        }
+
+        if (isSpecificFormat)
+        {
+            // ── 2. Forward to Client Endpoint Synchronously ───────────────────
+            var billId = payload["BillId"]?.ToString() ?? "unknown";
+            var batchCorrId = payload["BatchCorrelationId"]?.ToString() ?? correlationId;
+
+            _logger.LogInformation("Detected specific status format for BillId {BillId}. Forwarding to client endpoint.", billId);
+
+            await _externalApi.PostToClientAsync(payloadString, billId, batchCorrId, ct);
+
+            return Ok(ApiResponse<object>.Ok(new { }, "Status forwarded to client endpoint."));
+        }
+        else
+        {
+            // ── 3. Generic JSON: Process via Background Tasks ──────────────────
+            var micBillId = payload["micbillid"]?.ToString() ?? "unknown";
+
+            _logger.LogInformation("Generic JSON received. Enqueuing for BEM and SFTP.");
+
+            await _taskQueue.EnqueueAsync(new BackgroundTask
+            {
+                Type = BackgroundTaskType.BemPost,
+                Payload = payloadString,
+                MicBillId = micBillId,
+                CorrelationId = correlationId
+            });
+
+            await _taskQueue.EnqueueAsync(new BackgroundTask
+            {
+                Type = BackgroundTaskType.SftpUpload,
+                Payload = payloadString,
+                MicBillId = micBillId,
+                CorrelationId = correlationId
+            });
+
+            return Accepted(ApiResponse<object>.Ok(new { }, "Generic JSON accepted for processing."));
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────

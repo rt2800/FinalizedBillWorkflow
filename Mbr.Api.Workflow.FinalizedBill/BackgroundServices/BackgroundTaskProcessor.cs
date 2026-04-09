@@ -125,6 +125,15 @@ public sealed class BackgroundTaskProcessor : BackgroundService, IDisposable
                     payload: task.Payload);
                 break;
 
+            case BackgroundTaskType.BemPost:
+                var externalApi = scope.ServiceProvider.GetRequiredService<IExternalApiService>();
+                await externalApi.PostToBemAsync(
+                    payload: task.Payload,
+                    micBillId: task.MicBillId,
+                    correlationId: task.CorrelationId,
+                    ct: ct);
+                break;
+
             default:
                 _logger.LogWarning("Unknown background task type: {Type}", task.Type);
                 break;
