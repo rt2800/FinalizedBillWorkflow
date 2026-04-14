@@ -104,3 +104,20 @@ public sealed class ExternalEndpointsSettings
     public string BemEndpointUrl { get; set; } = string.Empty;
     public string BemServiceToken { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// Configuration for Basic Authentication.
+/// </summary>
+public sealed class BasicAuthSettings
+{
+    public List<BasicAuthClient> Clients { get; set; } = [];
+}
+
+/// <summary>
+/// Represents a client credential for Basic Authentication.
+/// </summary>
+public sealed class BasicAuthClient
+{
+    public string ClientId { get; set; } = string.Empty;
+    public string ClientSecret { get; set; } = string.Empty;
+}

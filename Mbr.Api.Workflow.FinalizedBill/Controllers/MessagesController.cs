@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Mbr.Api.Workflow.FinalizedBill.Models;
@@ -44,7 +45,7 @@ public sealed class MessagesController : ControllerBase
     /// publishes the payload to the RabbitMQ queue that matches the schema name.
     /// SFTP upload and Audit logging are handled in background tasks for performance.
     /// </summary>
-    [Authorize]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     [HttpPost("{schemaName}")]
     [ProducesResponseType(typeof(ApiResponse<PublishReceipt>), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ApiResponse<object>),          StatusCodes.Status400BadRequest)]
@@ -165,6 +166,7 @@ public sealed class MessagesController : ControllerBase
     /// it is forwarded synchronously to the Client endpoint.
     /// Otherwise, it is processed as a generic JSON: enqueued for BEM post and SFTP upload.
     /// </summary>
+    [Authorize(AuthenticationSchemes = "Basic")]
     [HttpPost("acceptstatus")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
@@ -248,7 +250,7 @@ public sealed class MessagesController : ControllerBase
     // POST /api/messages/{schemaName}/validate  (dry-run — no publish)
     // ──────────────────────────────────────────────────────────────────────────
 
-    [Authorize]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     [HttpPost("{schemaName}/validate")]
     [ProducesResponseType(typeof(ApiResponse<ValidationSummary>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<ValidationSummary>), StatusCodes.Status400BadRequest)]
