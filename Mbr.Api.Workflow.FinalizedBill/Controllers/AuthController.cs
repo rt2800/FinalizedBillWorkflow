@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Mbr.Api.Workflow.FinalizedBill.Models;
@@ -23,6 +24,7 @@ public sealed class AuthController : ControllerBase
     /// Generates a JWT token for a demo user.
     /// In a real application, this would validate credentials against a database.
     /// </summary>
+    [Authorize(AuthenticationSchemes = "Basic")]
     [HttpPost("token")]
     [ProducesResponseType(typeof(ApiResponse<TokenResponse>), StatusCodes.Status200OK)]
     public IActionResult GenerateToken()
@@ -35,9 +37,11 @@ public sealed class AuthController : ControllerBase
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
+        var userName = User.Identity?.Name ?? "DemoUser";
+
         var claims = new[]
         {
-            new Claim(ClaimTypes.Name, "DemoUser"),
+            new Claim(ClaimTypes.Name, userName),
             new Claim(ClaimTypes.Role, "User"),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };

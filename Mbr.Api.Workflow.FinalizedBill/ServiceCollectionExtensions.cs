@@ -1,5 +1,6 @@
 using System.Text;
 using EasyNetQ;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
@@ -19,6 +20,7 @@ public static class ServiceCollectionExtensions
         services.Configure<SftpSettings>(configuration.GetSection("Sftp"));
         services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
         services.Configure<ExternalEndpointsSettings>(configuration.GetSection("ExternalEndpoints"));
+        services.Configure<BasicAuthSettings>(configuration.GetSection("BasicAuth"));
 
         // JWT Authentication setup
         var jwtKey = configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is missing from configuration.");
@@ -42,7 +44,8 @@ public static class ServiceCollectionExtensions
                 ValidAudience = jwtAudience,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
             };
-        });
+        })
+        .AddScheme<AuthenticationSchemeOptions, BasicAuthenticationHandler>("Basic", null);
 
         services.AddAuthorization();
 
@@ -91,6 +94,15 @@ public static class ServiceCollectionExtensions
                 Scheme = "Bearer"
             });
 
+            c.AddSecurityDefinition("Basic", new OpenApiSecurityScheme
+            {
+                Description = "Basic Authentication header using the Basic scheme. Example: \"Authorization: Basic {credentials}\"",
+                Name = "Authorization",
+                In = ParameterLocation.Header,
+                Type = SecuritySchemeType.Http,
+                Scheme = "Basic"
+            });
+
             c.AddSecurityRequirement(new OpenApiSecurityRequirement
             {
                 {
@@ -100,6 +112,21 @@ public static class ServiceCollectionExtensions
                         {
                             Type = ReferenceType.SecurityScheme,
                             Id = "Bearer"
+                        }
+                    },
+                    Array.Empty<string>()
+                }
+            });
+
+            c.AddSecurityRequirement(new OpenApiSecurityRequirement
+            {
+                {
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference
+                        {
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "Basic"
                         }
                     },
                     Array.Empty<string>()
@@ -122,6 +149,14 @@ public static class ServiceCollectionExtensions
                         In = ParameterLocation.Header,
                         Description = "JWT Authorization header using the Bearer scheme."
                     });
+
+                    doc.Components.SecuritySchemes.Add("Basic", new OpenApiSecurityScheme
+                    {
+                        Type = SecuritySchemeType.Http,
+                        Scheme = "basic",
+                        In = ParameterLocation.Header,
+                        Description = "Basic Authentication header."
+                    });
                 }
 
                 if (doc.SecurityRequirements != null)
@@ -135,6 +170,21 @@ public static class ServiceCollectionExtensions
                                 {
                                     Type = ReferenceType.SecurityScheme,
                                     Id = "Bearer"
+                                }
+                            },
+                            Array.Empty<string>()
+                        }
+                    });
+
+                    doc.SecurityRequirements.Add(new OpenApiSecurityRequirement
+                    {
+                        {
+                            new OpenApiSecurityScheme
+                            {
+                                Reference = new OpenApiReference
+                                {
+                                    Type = ReferenceType.SecurityScheme,
+                                    Id = "Basic"
                                 }
                             },
                             Array.Empty<string>()
